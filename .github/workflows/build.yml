@@ -4,7 +4,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Docker Compose
         uses: ndeloof/install-compose-action@v0.0.1
       - name: Setup Environment Variables
