@@ -58,6 +58,8 @@ services:
       - TZ=${TIMEZONE}
     volumes:
       - ${MNT_DATA}/Configs/Prowlarr:/config
+    ports:
+      - 9696:9696
     restart: always
 
   gitea:
@@ -71,8 +73,8 @@ services:
       - ${MNT_DATA}/Configs/Gitea:/etc/gitea
       - ${MNT_DATA}/Gitea:/data
     ports:
-      - "3000:3000"
-      - "2222:22"
+      - 3000:3000
+      - 2222:22
     restart: always
 
   transmission:
