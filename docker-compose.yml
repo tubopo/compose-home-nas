@@ -14,7 +14,6 @@ services:
       - ${MNT_DATA}/Photos:/data/photos
       - ${MNT_DATA}/Music:/data/music
     devices:
-      - /dev/vchiq:/dev/qchiq
       - /dev/dri/card0:/dev/dri/card0
       - /dev/dri/renderD128:/dev/dri/renderD128
     ports:
@@ -34,7 +33,32 @@ services:
       - ${MNT_DATA}/Torrents/downloads:/downloads
     ports:
       - 8989:8989
-    restart: always  
+    restart: always
+
+  jackett:
+    image: lscr.io/linuxserver/jackett
+    container_name: jackett
+    environment:
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+    volumes:
+      - ${MNT_DATA}/Configs/Jackett:/config
+      - ${MNT_DATA}/Torrents/downloads:/downloads
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - 9117:9117'
+    restart: always
+  
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    environment:
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+    volumes:
+      - ${MNT_DATA}/Configs/Prowlarr:/config
+    restart: always
 
   gitea:
     image: gitea/gitea:latest
