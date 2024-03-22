@@ -14,7 +14,9 @@ services:
       - ${MNT_DATA}/Photos:/data/photos
       - ${MNT_DATA}/Music:/data/music
     devices:
-       - /dev/vchiq:/dev/qchiq
+      - /dev/vchiq:/dev/qchiq
+      - /dev/dri/card0:/dev/dri/card0
+      - /dev/dri/renderD128:/dev/dri/renderD128
     ports:
       - 8096:8096
     restart: always
