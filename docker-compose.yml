@@ -21,6 +21,21 @@ services:
       - 8096:8096
     restart: always
 
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+    volumes:
+      - ${MNT_DATA}/Configs/Sonarr:/config
+      - ${MNT_DATA}/TV:/tv
+      - ${MNT_DATA}/Torrents/downloads:/downloads
+    ports:
+      - 8989:8989
+    restart: always  
+
   gitea:
     image: gitea/gitea:latest
     container_name: gitea
