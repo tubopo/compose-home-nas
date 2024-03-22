@@ -13,6 +13,8 @@ services:
       - ${MNT_DATA}/Movies:/data/movies
       - ${MNT_DATA}/Photos:/data/photos
       - ${MNT_DATA}/Music:/data/music
+    devices:
+       - /dev/vchiq:/dev/qchiq
     ports:
       - 8096:8096
     restart: always
