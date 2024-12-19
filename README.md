@@ -39,6 +39,8 @@ MNT_DATA
 │     ├──Jellyfin
 │     ├──Transmission
 │     ├──Gitea
+│     ├──Prometheus
+│     ├──Grafana
 │     ├──Sonarr
 │     ├──Jakett
 │     └──Prowlarr
@@ -48,10 +50,6 @@ MNT_DATA
 └──Music
 
 MNT_METRIC_DATA
-├──Configs
-│     ├──Grafana
-│     └──Prometheus
-│
 ├──Grafana
 └──Prometheus
 ```
