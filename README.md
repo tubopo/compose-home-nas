@@ -11,7 +11,6 @@
 | [transmission](https://transmissionbt.com)    | [linuxserver/transmission](https://hub.docker.com/r/linuxserver/transmission) | Bittorrent client with a complete web UI                                                                                                                                                                                    |
 | [sonarr](https://sonarr.tv/)                  | [linuxserver/sonarr](https://hub.docker.com/r/linuxserver/sonarr)             | Sonarr is a PVR for Usenet and BitTorrent users.                                                                                                                                                                            |
 | [jackett](https://github.com/Jackett/Jackett) | [linuxserver/jackett](https://hub.docker.com/r/linuxserver/jackett)           | Works as a proxy server: it translates queries from apps (Sonarr, SickRage, CouchPotato, Mylar, etc) into tracker-site-specific http queries, parses the html response, then sends results back to the requesting software. |
-| [prowlarr](https://prowlarr.com/)             | [linuxserver/prowlarr](https://hub.docker.com/r/linuxserver/prowlarr)         | Prowlarr provides a web interface and API for searching trackers/indexers and automatically managing the results.                                                                                                           |
 | [prometheus](https://prometheus.io/)          | [prom/prometheus](https://hub.docker.com/r/prom/prometheus)                   | Systems monitoring and alerting.                                                                                                                                                                                      |
 | [grafana](https://grafana.com/)               | [grafana/grafana](https://hub.docker.com/r/grafana/grafana/tags)              | Observability/visualization tool.                                                                                                                                                                                             |
 
@@ -42,8 +41,7 @@ MNT_DATA
 │     ├──Prometheus
 │     ├──Grafana
 │     ├──Sonarr
-│     ├──Jakett
-│     └──Prowlarr
+│     └──Jakett
 ├──TV
 ├──Movies
 ├──Photos
