@@ -49,19 +49,6 @@ services:
       - 9117:9117
     restart: always
 
-  prowlarr:
-    image: lscr.io/linuxserver/prowlarr:latest
-    container_name: prowlarr
-    environment:
-      - PUID=${USER_ID}
-      - PGID=${GROUP_ID}
-      - TZ=${TIMEZONE}
-    volumes:
-      - ${MNT_DATA}/Configs/Prowlarr:/config
-    ports:
-      - 9696:9696
-    restart: always
-
   gitea:
     image: gitea/gitea:latest
     container_name: gitea
