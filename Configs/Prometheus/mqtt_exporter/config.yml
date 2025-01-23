@@ -1,0 +1,22 @@
+targets:
+  - name: "weather_station"
+    mqtt_broker: "tcp://192.168.88.88:1883"
+    mqtt_topic: "weather_station/#"
+    mqtt_qos: 0
+    metrics:
+      - name: "temperature"
+        help: "Temperature readings from weather station"
+        topic: "weather_station/temperature"
+        type: "gauge"
+      - name: "humidity"
+        help: "Humidity readings from weather station"
+        topic: "weather_station/humidity"
+        type: "gauge"
+      - name: "pressure"
+        help: "Pressure readings from weather station"
+        topic: "weather_station/pressure"
+        type: "gauge"
+      - name: "battery_voltage"
+        help: "Battery voltage readings from weather station"
+        topic: "weather_station/battery_voltage"
+        type: "gauge"

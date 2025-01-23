@@ -98,6 +98,19 @@ services:
       - "9090:9090"
     restart: always
 
+  mqtt_exporter:
+    image: inovex/mqtt-blackbox-exporter:latest
+    container_name: mqtt-exporter
+    environment:
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+    volumes:
+      - ${MNT_DATA}/Configs/Prometheus/mqtt_exporter/config.yml:/etc/mqtt_exporter/config.yml
+    ports: 
+      - "9384:9384"
+    restart: always
+  
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
