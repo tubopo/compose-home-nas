@@ -15,5 +15,6 @@ scrape_configs:
     static_configs:
       - targets: ["192.168.88.88:9100"]
   - job_name: mqtt-exporter
+    scrape_interval: 30m
     static_configs:
       - targets: ["192.168.88.88:9000"]
