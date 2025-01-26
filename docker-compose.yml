@@ -98,20 +98,6 @@ services:
       - "9090:9090"
     restart: always
 
-  mqtt-exporter:
-    image: kpetrem/mqtt-exporter
-    container_name: prometheus-mqtt-exporter
-    ports:
-      - 9000:9000
-    environment:
-      - MQTT_ADDRESS=${MQTT_ADDRESS}
-      - PROMETHEUS_PREFIX=sensor_
-      - TOPIC_LABEL=sensor
-      - ESPHOME_TOPIC_PREFIXES=weather
-      - MQTT_USERNAME=${MQTT_USERNAME}
-      - MQTT_PASSWORD=${MQTT_PASSWORD}
-    restart: always
-
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
