@@ -140,6 +140,18 @@ services:
       - ${MNT_METRIC_DATA}/Mosquitto/data:/mosquitto/data
       - ${MNT_METRIC_DATA}/Mosquitto/log:/mosquitto/log
     restart: always
+  watchtower:
+    image: containrrr/watchtower
+    environment:
+      - WATCHTOWER_HTTP_API_TOKEN=${WATCHTOWER_HTTP_API_TOKEN}
+      - WATCHTOWER_NOTIFICATIONS=shoutrrr
+      - WATCHTOWER_NOTIFICATION_URL=telegram://${BOT_TOKEN}@telegram/?channels=${CHAT_ID}
+    ports:
+      - 8080:8080  
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 30  
+    
 
 networks:
   default:
