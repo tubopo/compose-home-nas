@@ -125,7 +125,21 @@ services:
     restart: always
     volumes:
       - '/:/host:ro,rslave'
-
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: mosquitto
+    environment:
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ${MNT_DATA}/Configs/Mosquitto:/mosquitto/config
+      - ${MNT_METRIC_DATA}/Mosquitto/data:/mosquitto/data
+      - ${MNT_METRIC_DATA}/Mosquitto/log:/mosquitto/log
+    restart: always
 
 networks:
   default:
