@@ -155,18 +155,19 @@ services:
     command: --http-api-metrics
 
   influxdb:
-    image: influxdb:2
+    image: influxdb:latest
     container_name: influxdb
     ports:
       - "8087:8086"
     volumes:
       - ${MNT_METRIC_DATA}/Influxdb:/var/lib/influxdb2
+      - ${MNT_DATA}/Configs/Influxdb:/etc/influxdb2
     environment:
       - DOCKER_INFLUXDB_INIT_MODE=setup
       - DOCKER_INFLUXDB_INIT_USERNAME=${DOCKER_INFLUXDB_INIT_USERNAME}
       - DOCKER_INFLUXDB_INIT_PASSWORD=${DOCKER_INFLUXDB_INIT_PASSWORD}
-      - DOCKER_INFLUXDB_INIT_RETENTION=90d
       - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${DOCKER_INFLUXDB_INIT_ADMIN_TOKEN}
+      - DOCKER_INFLUXDB_INIT_RETENTION=90d
       - DOCKER_INFLUXDB_INIT_ORG=home
       - DOCKER_INFLUXDB_INIT_BUCKET=metrics
     restart: always
