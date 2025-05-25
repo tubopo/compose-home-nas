@@ -184,7 +184,7 @@ services:
     links:
       - influxdb
     volumes:
-      - ${MNT_DATA}/Configs/Telegraf/:/etc/telegraf/telegraf.conf:ro
+      - ${MNT_DATA}/Configs/Telegraf/:/etc/telegraf/telegraf:ro
     restart: unless-stopped  
 
 networks:
