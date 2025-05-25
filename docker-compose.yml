@@ -125,6 +125,7 @@ services:
     restart: always
     volumes:
       - '/:/host:ro,rslave'
+
   mosquitto:
     image: eclipse-mosquitto:latest
     container_name: mosquitto
@@ -140,6 +141,7 @@ services:
       - ${MNT_METRIC_DATA}/Mosquitto/data:/mosquitto/data
       - ${MNT_METRIC_DATA}/Mosquitto/log:/mosquitto/log
     restart: always
+
   watchtower:
     image: containrrr/watchtower
     environment:
@@ -151,6 +153,36 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     command: --http-api-metrics
+
+  influxdb:
+    image: influxdb:2
+    container_name: influxdb
+    ports:
+      - "8086:8086"
+    volumes:
+      - ${MNT_METRIC_DATA}/Influxdb:/var/lib/influxdb2
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=${DOCKER_INFLUXDB_INIT_USERNAME}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${DOCKER_INFLUXDB_INIT_PASSWORD}
+      - DOCKER_INFLUXDB_INIT_ORG=metrics
+      - DOCKER_INFLUXDB_INIT_BUCKET=home
+    restart: always
+
+  telegraf:
+    image: telegraf:latest
+    container_name: telegraf
+    environment:
+      - MQTT_USER=${MQTT_USER}
+      - MQTT_PASSWORD=${MQTT_PASSWORD}
+      - INFLUXDB_API_TOKEN=${INFLUXDB_API_TOKEN}
+    depends_on:
+      - influxdb
+    links:
+      - influxdb
+    volumes:
+      - ${MNT_DATA}/Configs/Telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    restart: unless-stopped  
 
 networks:
   default:
