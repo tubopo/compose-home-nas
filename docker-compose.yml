@@ -158,7 +158,7 @@ services:
     image: influxdb:2
     container_name: influxdb
     ports:
-      - "8086:8086"
+      - 8099:8096
     volumes:
       - ${MNT_METRIC_DATA}/Influxdb:/var/lib/influxdb2
     environment:
