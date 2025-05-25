@@ -181,7 +181,7 @@ services:
       - MQTT_PASSWORD=${MQTT_PASSWORD}
       - INFLUXDB_API_TOKEN=${INFLUXDB_API_TOKEN}
     volumes:
-      - ${MNT_DATA}/Configs/Telegraf/:/etc/telegraf/telegraf:ro
+      - ${MNT_DATA}/Configs/Telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
     restart: always
 
 networks:
