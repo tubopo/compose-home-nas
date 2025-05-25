@@ -153,6 +153,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     command: --http-api-metrics
+    restart: always
 
   influxdb:
     image: influxdb:latest
@@ -179,13 +180,9 @@ services:
       - MQTT_USER=${MQTT_USER}
       - MQTT_PASSWORD=${MQTT_PASSWORD}
       - INFLUXDB_API_TOKEN=${INFLUXDB_API_TOKEN}
-    depends_on:
-      - influxdb
-    links:
-      - influxdb
     volumes:
       - ${MNT_DATA}/Configs/Telegraf/:/etc/telegraf/telegraf:ro
-    restart: unless-stopped  
+    restart: always
 
 networks:
   default:
