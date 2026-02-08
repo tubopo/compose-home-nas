@@ -49,6 +49,7 @@ services:
       - "traefik.http.routers.dashboard.entrypoints=websecure"
       - "traefik.http.routers.dashboard.rule=Host(`traefik.${DOMAIN}`)"
       - "traefik.http.routers.dashboard.tls=true"
+      - "traefik.http.routers.dashboard.tls.certresolver=cloudflare"
       - "traefik.http.routers.dashboard.service=api@internal"
       - "traefik.http.routers.dashboard.middlewares=auth"
       - "traefik.http.middlewares.auth.basicauth.users=${TRAEFIK_AUTH}"
@@ -114,6 +115,8 @@ services:
       - ${MEDIA_SHARE}/media:/media
     labels:
       - "traefik.enable=true"
+      - "traefik.http.routers.jellyfin.tls=true"
+      - "traefik.http.routers.jellyfin.entrypoints=websecure"
       - "traefik.http.routers.jellyfin.rule=Host(`jellyfin.${DOMAIN}`)"
       - "traefik.http.services.jellyfin.loadbalancer.server.port=8096"
       - "traefik.http.routers.jellyfin.tls.certresolver=cloudflare"
@@ -129,5 +132,41 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4G
+          memory: 2G
           cpus: "2.0"
+  # ============================================
+  # sonarr
+  # ============================================
+  sonarr:
+    image: lscr.io/linuxserver/sonarr
+    container_name: sonarr
+    logging: *default-logging
+    hostname: sonarr
+    networks:
+      restricted_wan:
+        ipv4_address: 172.20.30.40
+    environment:
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - UMASK_SET=${USER_MASK}
+    volumes:
+      - ${CONFIG_ROOT:-.}/sonarr:/config
+      - ${MEDIA_SHARE}/media:/media
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sonarr.tls=true"
+      - "traefik.http.routers.sonarr.entrypoints=websecure"
+      - "traefik.http.routers.sonarr.rule=Host(`sonarr.${DOMAIN}`)"
+      - "traefik.http.services.sonarr.loadbalancer.server.port=8989"
+      - "traefik.http.routers.sonarr.tls.certresolver=cloudflare"
+    restart: "unless-stopped"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:8989/sonarr/ping"]
+      interval: 1m
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
