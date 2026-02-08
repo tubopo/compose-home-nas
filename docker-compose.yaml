@@ -1,0 +1,133 @@
+# ============================================
+# logging
+# ============================================
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+    compress: "true"
+
+# ============================================
+# netwokrs
+# ============================================
+networks:
+  default:
+    name: compose-home-nas
+  restricted_wan:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.30.0/24
+
+services:
+  # ============================================
+  # traefik
+  # ============================================
+  traefik:
+    image: traefik:v3.6.7
+    container_name: traefik
+    logging: *default-logging
+    hostname: traefik
+    networks:
+      restricted_wan:
+        ipv4_address: 172.20.30.10
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - UMASK_SET=${USER_MASK}
+      - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${CONFIG_ROOT}/traefik/certificates:/certificates:rw
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.${DOMAIN}`)"
+      - "traefik.http.routers.dashboard.tls=true"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.middlewares=auth"
+      - "traefik.http.middlewares.auth.basicauth.users=${TRAEFIK_AUTH}"
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--api.dashboard=true"
+      - "--log.level=DEBUG"
+      # EntryPoints & Automatic HTTPS
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--providers.docker.allowEmptyServices=true"
+      # Cloudflare SSL by default
+      - "--entrypoints.websecure.http.tls.certresolver=cloudflare"
+      # DNS Challenge Config
+      - "--certificatesresolvers.cloudflare.acme.dnschallenge=true"
+      - "--certificatesresolvers.cloudflare.acme.dnschallenge.provider=cloudflare"
+      - "--certificatesresolvers.cloudflare.acme.email=${CF_API_EMAIL}"
+      - "--certificatesresolvers.cloudflare.acme.storage=/certificates/acme.json"
+      - "--certificatesresolvers.cloudflare.acme.dnschallenge.resolvers=1.1.1.1:53,8.8.8.8:53"
+      # Health & Monitoring
+      - "--ping=true"
+      - "--ping.entrypoint=web"
+    security_opt:
+      - no-new-privileges:true
+    restart: "unless-stopped"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:80/ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 150M
+          cpus: "0.5"
+  # ============================================
+  # jellyfin server
+  # ============================================
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin
+    container_name: jellyfin
+    logging: *default-logging
+    hostname: jellyfin
+    networks:
+      restricted_wan:
+        ipv4_address: 172.20.30.50
+    ports:
+      - 8096:8096/tcp
+      - 7359:7359/udp
+    environment:
+      - JELLYFIN_PublishedServerUrl=https://jellyfin.${DOMAIN}
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - UMASK_SET=${USER_MASK}
+    volumes:
+      - ${CONFIG_ROOT:-.}/jellyfin:/config
+      - ${CONFIG_ROOT:-.}/jellyfin/cache:/cache
+      - ${MEDIA_SHARE}/media:/media
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.jellyfin.rule=Host(`jellyfin.${DOMAIN}`)"
+      - "traefik.http.services.jellyfin.loadbalancer.server.port=8096"
+      - "traefik.http.routers.jellyfin.tls.certresolver=cloudflare"
+    devices:
+      - /dev/dri:/dev/dri
+    restart: "unless-stopped"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:8096/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "2.0"
