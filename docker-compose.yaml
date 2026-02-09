@@ -101,8 +101,8 @@ services:
       restricted_wan:
         ipv4_address: 172.20.30.50
     ports:
-      - 8096:8096/tcp
-      - 7359:7359/udp
+      - "7359:7359/udp" # Client discovery (auto-detect on LAN)
+      - "1900:1900/udp" # DLNA
     environment:
       - JELLYFIN_PublishedServerUrl=https://jellyfin.${DOMAIN}
       - PUID=${USER_ID}
