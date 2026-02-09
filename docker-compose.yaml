@@ -25,6 +25,7 @@ services:
   # traefik
   # ============================================
   traefik:
+    profiles: [net]
     image: traefik:v3.6.7
     container_name: traefik
     logging: *default-logging
@@ -93,6 +94,7 @@ services:
   # jellyfin server
   # ============================================
   jellyfin:
+    profiles: [media]
     image: lscr.io/linuxserver/jellyfin
     container_name: jellyfin
     logging: *default-logging
@@ -138,6 +140,7 @@ services:
   # jellyseerr
   # ============================================
   jellyseerr:
+    profiles: [media]
     image: fallenbagel/jellyseerr
     container_name: jellyseerr
     logging: *default-logging
@@ -158,8 +161,9 @@ services:
       - "traefik.http.routers.jellyseerr.tls=true"
       - "traefik.http.routers.jellyseerr.entrypoints=websecure"
       - "traefik.http.routers.jellyseerr.rule=Host(`jellyseerr.${DOMAIN}`)"
-      - "traefik.http.services.jellyseerr.loadbalancer.server.port=8096"
+      - "traefik.http.services.jellyseerr.loadbalancer.server.port=5055"
       - "traefik.http.routers.jellyseerr.tls.certresolver=cloudflare"
+    restart: "unless-stopped"
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://127.0.0.1:5055/api/v1/status"]
       interval: 2m
@@ -174,6 +178,7 @@ services:
   # sonarr
   # ============================================
   sonarr:
+    profiles: [arr-stack]
     image: lscr.io/linuxserver/sonarr
     container_name: sonarr
     logging: *default-logging
@@ -211,6 +216,7 @@ services:
   # prowlarr
   # ============================================
   prowlarr:
+    profiles: [arr-stack]
     image: lscr.io/linuxserver/prowlarr
     container_name: prowlarr
     logging: *default-logging
@@ -230,7 +236,7 @@ services:
       - "traefik.http.routers.prowlarr.tls=true"
       - "traefik.http.routers.prowlarr.entrypoints=websecure"
       - "traefik.http.routers.prowlarr.rule=Host(`prowlarr.${DOMAIN}`)"
-      - "traefik.http.services.prowlarr.loadbalancer.server.port=8989"
+      - "traefik.http.services.prowlarr.loadbalancer.server.port=9696"
       - "traefik.http.routers.prowlarr.tls.certresolver=cloudflare"
     restart: "unless-stopped"
     healthcheck:
@@ -239,6 +245,132 @@ services:
       timeout: 15s
       retries: 2
       start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+  # ============================================
+  # qbittorrent
+  # ============================================
+  qbit:
+    profiles: [media]
+    image: lscr.io/linuxserver/qbittorrent
+    container_name: qbit
+    logging: *default-logging
+    hostname: qbit
+    networks:
+      restricted_wan:
+        ipv4_address: 172.20.30.60
+    environment:
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - UMASK_SET=${USER_MASK}
+      - WEBUI_PORT=8085
+      - DOCKER_MODS=ghcr.io/vuetorrent/vuetorrent-lsio-mod:latest
+    volumes:
+      - ${CONFIG_ROOT:-.}/qbit:/config
+      - ${MEDIA_SHARE}/media:/media
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.qbit.tls=true"
+      - "traefik.http.routers.qbit.entrypoints=websecure"
+      - "traefik.http.routers.qbit.rule=Host(`qbit.${DOMAIN}`)"
+      - "traefik.http.services.qbit.loadbalancer.server.port=8085"
+      - "traefik.http.routers.qbit.tls.certresolver=cloudflare"
+    restart: "unless-stopped"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:8085"]
+      interval: 1m
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+
+  # ============================================
+  # radarr
+  # ============================================
+  radarr:
+    profiles: [arr-stack]
+    image: lscr.io/linuxserver/radarr
+    container_name: radarr
+    logging: *default-logging
+    hostname: radarr
+    networks:
+      restricted_wan:
+        ipv4_address: 172.20.30.70
+    environment:
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - UMASK_SET=${USER_MASK}
+    volumes:
+      - ${CONFIG_ROOT:-.}/radarr:/app/config
+      - ${MEDIA_ROOT}/media:/media
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.radarr.tls=true"
+      - "traefik.http.routers.radarr.entrypoints=websecure"
+      - "traefik.http.routers.radarr.rule=Host(`radarr.${DOMAIN}`)"
+      - "traefik.http.services.radarr.loadbalancer.server.port=7878"
+      - "traefik.http.routers.radarr.tls.certresolver=cloudflare"
+    restart: "unless-stopped"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sf http://localhost:7878/ && wget -q --spider --timeout=5 http://www.google.com",
+        ]
+      interval: 2m
+      timeout: 15s
+      retries: 2
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+  # ============================================
+  # flaresolverr - Cloudflare bypass. Helps Prowlarr access protected sites.
+  # ============================================
+  flaresolverr:
+    profiles: [arr-stack]
+    image: ghcr.io/flaresolverr/flaresolverr
+    container_name: flaresolverr
+    logging: *default-logging
+    hostname: flaresolverr
+    networks:
+      restricted_wan:
+        ipv4_address: 172.20.30.80
+    environment:
+      - LOG_LEVEL=info
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - UMASK_SET=${USER_MASK}
+    restart: "unless-stopped"
+    healthcheck:
+      # Actually test Chrome by making a solve request (catches Chrome crashes)
+      test:
+        [
+          "CMD",
+          "curl",
+          "-sf",
+          "-X",
+          "POST",
+          "-H",
+          "Content-Type: application/json",
+          "-d",
+          '{"cmd":"request.get","url":"http://localhost:8191/","maxTimeout":30000}',
+          "http://localhost:8191/v1",
+        ]
+      interval: 10m
+      timeout: 60s
+      retries: 2
+      start_period: 2m
     deploy:
       resources:
         limits:
