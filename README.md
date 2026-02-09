@@ -7,7 +7,7 @@
 ```txt
 .MEDIA_SHARE
 └──media
-  ├──torrents
+  ├──downloads
   ├──tv
   └──movies
 
