@@ -25,7 +25,6 @@ services:
   # traefik
   # ============================================
   traefik:
-    profiles: [net]
     image: traefik:v3.6.7
     container_name: traefik
     logging: *default-logging
@@ -91,11 +90,10 @@ services:
           memory: 150M
           cpus: "0.5"
   # ============================================
-  # jellyfin server
+  # jellyfin - media server
   # ============================================
   jellyfin:
-    profiles: [media]
-    image: lscr.io/linuxserver/jellyfin
+    image: lscr.io/linuxserver/jellyfin:latest
     container_name: jellyfin
     logging: *default-logging
     hostname: jellyfin
@@ -111,10 +109,11 @@ services:
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
       - UMASK_SET=${USER_MASK}
+
     volumes:
       - ${CONFIG_ROOT:-.}/jellyfin:/config
       - ${CONFIG_ROOT:-.}/jellyfin/cache:/cache
-      - ${MEDIA_SHARE}/media:/media
+      - ${MEDIA_SHARE}/media:/media:rw
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.jellyfin.tls=true"
@@ -137,11 +136,10 @@ services:
           memory: 2G
           cpus: "2.0"
   # ============================================
-  # jellyseerr
+  # jellyseerr - request portal
   # ============================================
   jellyseerr:
-    profiles: [media]
-    image: fallenbagel/jellyseerr
+    image: ghcr.io/fallenbagel/jellyseerr:latest
     container_name: jellyseerr
     logging: *default-logging
     hostname: jellyseerr
@@ -149,11 +147,12 @@ services:
       restricted_wan:
         ipv4_address: 172.20.30.20
     environment:
-      - LOG_LEVEL=info
+      - LOG_LEVEL=debug
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
       - UMASK_SET=${USER_MASK}
+      - PORT=5055
     volumes:
       - ${CONFIG_ROOT:-.}/jellyseerr:/app/config
     labels:
@@ -166,8 +165,9 @@ services:
     restart: "unless-stopped"
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://127.0.0.1:5055/api/v1/status"]
-      interval: 2m
-      timeout: 10s
+      start_period: 20s
+      timeout: 3s
+      interval: 15s
       retries: 3
     deploy:
       resources:
@@ -175,11 +175,10 @@ services:
           memory: 512M
           cpus: "0.5"
   # ============================================
-  # sonarr
+  # sonarr - tv show monitor
   # ============================================
   sonarr:
-    profiles: [arr-stack]
-    image: lscr.io/linuxserver/sonarr
+    image: lscr.io/linuxserver/sonarr:latest
     container_name: sonarr
     logging: *default-logging
     hostname: sonarr
@@ -193,7 +192,7 @@ services:
       - UMASK_SET=${USER_MASK}
     volumes:
       - ${CONFIG_ROOT:-.}/sonarr:/config
-      - ${MEDIA_SHARE}/media:/media
+      - ${MEDIA_SHARE}/media:/media:rw
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.sonarr.tls=true"
@@ -211,13 +210,11 @@ services:
         limits:
           memory: 512M
           cpus: "0.5"
-
   # ============================================
-  # prowlarr
+  # prowlarr - indexer manager
   # ============================================
   prowlarr:
-    profiles: [arr-stack]
-    image: lscr.io/linuxserver/prowlarr
+    image: lscr.io/linuxserver/prowlarr:latest
     container_name: prowlarr
     logging: *default-logging
     hostname: prowlarr
@@ -251,11 +248,10 @@ services:
           memory: 512M
           cpus: "0.5"
   # ============================================
-  # qbittorrent
+  # qbittorrent - torrent download client
   # ============================================
   qbit:
-    profiles: [media]
-    image: lscr.io/linuxserver/qbittorrent
+    image: lscr.io/linuxserver/qbittorrent:latest
     container_name: qbit
     logging: *default-logging
     hostname: qbit
@@ -271,7 +267,7 @@ services:
       - DOCKER_MODS=ghcr.io/vuetorrent/vuetorrent-lsio-mod:latest
     volumes:
       - ${CONFIG_ROOT:-.}/qbit:/config
-      - ${MEDIA_SHARE}/media:/media
+      - ${MEDIA_SHARE}/media:/media:rw
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.qbit.tls=true"
@@ -289,13 +285,11 @@ services:
         limits:
           memory: 512M
           cpus: "0.5"
-
   # ============================================
-  # radarr
+  # radarr - movie monitor
   # ============================================
   radarr:
-    profiles: [arr-stack]
-    image: lscr.io/linuxserver/radarr
+    image: lscr.io/linuxserver/radarr:latest
     container_name: radarr
     logging: *default-logging
     hostname: radarr
@@ -309,7 +303,7 @@ services:
       - UMASK_SET=${USER_MASK}
     volumes:
       - ${CONFIG_ROOT:-.}/radarr:/app/config
-      - ${MEDIA_ROOT}/media:/media
+      - ${MEDIA_SHARE}/media:/media:rw
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.radarr.tls=true"
@@ -319,11 +313,7 @@ services:
       - "traefik.http.routers.radarr.tls.certresolver=cloudflare"
     restart: "unless-stopped"
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "curl -sf http://localhost:7878/ && wget -q --spider --timeout=5 http://www.google.com",
-        ]
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:7878"]
       interval: 2m
       timeout: 15s
       retries: 2
@@ -334,11 +324,10 @@ services:
           memory: 512M
           cpus: "0.5"
   # ============================================
-  # flaresolverr - Cloudflare bypass. Helps Prowlarr access protected sites.
+  # flaresolverr - cloudflare bypass
   # ============================================
   flaresolverr:
-    profiles: [arr-stack]
-    image: ghcr.io/flaresolverr/flaresolverr
+    image: ghcr.io/flaresolverr/flaresolverr:latest
     container_name: flaresolverr
     logging: *default-logging
     hostname: flaresolverr
