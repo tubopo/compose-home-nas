@@ -19,6 +19,11 @@ networks:
     ipam:
       config:
         - subnet: 172.20.30.0/24
+  vpn-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.8.1.0/24
 
 services:
   # ============================================
@@ -90,6 +95,61 @@ services:
           memory: 150M
           cpus: "0.5"
   # ============================================
+  # gluetun - VPN gateway.
+  # ============================================
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
+    logging: *default-logging
+    hostname: gluetun
+    networks:
+      restricted_wan:
+        ipv4_address: 172.20.30.90
+      vpn-net:
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - "7878:7878/tcp" # Radarr
+      - "5055:5055/tcp" # Jellyseerr
+    environment:
+      - LOG_LEVEL=debug
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - UMASK_SET=${USER_MASK}
+      # VPN Configuration
+      - VPN_SERVICE_PROVIDER=tailscale
+      - VPN_TYPE=tailscale
+      - TAILSCALE_AUTH_KEY=${TAILSCALE_AUTH_KEY:-}
+      - TAILSCALE_HOSTNAME=arr-services-vpn
+      - TAILSCALE_TAGS=tag:radarr,tag:jellyseerr,docker
+      # Network
+      - FIREWALL_VPN_INPUT_PORTS=7878,5055 # Radarr & Jellyseerr ports
+      - SERVER_CITIES=${TAILSCALE_EXIT_NODE_CITY:-}
+      - DNS_ADDRESS=1.1.1.1
+      - DNS_PLAINTEXT_ADDRESS=1.1.1.1
+      # Health checks
+      - HEALTH_VPN_DURATION_INITIAL=30s
+      - HEALTH_VPN_DURATION=1m
+    volumes:
+      - ${CONFIG_ROOT:-.}/gluetun:/gluetun
+    labels:
+      - "traefik.enable=false"
+    restart: "unless-stopped"
+    healthcheck:
+      test: ["CMD", "/gluetun-entrypoint", "healthcheck"]
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+  # ============================================
   # jellyfin - media server
   # ============================================
   jellyfin:
@@ -146,6 +206,16 @@ services:
     networks:
       restricted_wan:
         ipv4_address: 172.20.30.20
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+      radarr:
+        condition: service_healthy
+      sonarr:
+        condition: service_healthy
+      jellyfin:
+        condition: service_healthy
     environment:
       - LOG_LEVEL=debug
       - PUID=${USER_ID}
@@ -153,6 +223,8 @@ services:
       - TZ=${TIMEZONE}
       - UMASK_SET=${USER_MASK}
       - PORT=5055
+      - APP_URL=https://jellyseerr.${DOMAIN}
+      - TRUST_PROXY=1
     volumes:
       - ${CONFIG_ROOT:-.}/jellyseerr:/app/config
     labels:
@@ -296,6 +368,10 @@ services:
     networks:
       restricted_wan:
         ipv4_address: 172.20.30.70
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
     environment:
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
@@ -340,6 +416,8 @@ services:
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
       - UMASK_SET=${USER_MASK}
+    labels:
+      - "traefik.enable=false"
     restart: "unless-stopped"
     healthcheck:
       # Actually test Chrome by making a solve request (catches Chrome crashes)
