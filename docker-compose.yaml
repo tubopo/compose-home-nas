@@ -18,9 +18,23 @@ networks:
       config:
         - subnet: 172.20.30.0/24
 
+# ============================================
+# secrets
+# ============================================
+secrets:
+  cf_dns_api_token:
+    file: ${SECRETS}/cf_dns_api_token
+  traefik_basic_auth:
+    file: ${SECRETS}/traefik_basic_auth
+  cf_api_email:
+    file: ${SECRETS}/cf_api_email
+  pia_user:
+    file: ${SECRETS}/pia_user
+  pia_pass:
+    file: ${SECRETS}/pia_pass
 services:
   # ============================================
-  # traefik
+  # traefik - application proxy
   # ============================================
   traefik:
     image: traefik:v3.6.7
@@ -33,13 +47,18 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    secrets:
+      - cf_dns_api_token
+      - traefik_basic_auth
+      - cf_api_email
     environment:
       - LOG_LEVEL=info
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
       - UMASK_SET=${USER_MASK}
-      - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN}
+      - CF_DNS_API_TOKEN_FILE=/run/secrets/cf_dns_api_token
+      - CF_API_EMAIL_FILE=/run/secrets/cf_api_email
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ${CONFIG_ROOT}/traefik/certificates:/certificates:rw
@@ -51,12 +70,12 @@ services:
       - "traefik.http.routers.dashboard.tls.certresolver=cloudflare"
       - "traefik.http.routers.dashboard.service=api@internal"
       - "traefik.http.routers.dashboard.middlewares=auth"
-      - "traefik.http.middlewares.auth.basicauth.users=${TRAEFIK_AUTH}"
+      - "traefik.http.middlewares.auth.basicauth.usersfile=/run/secrets/traefik_basic_auth"
     command:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--api.dashboard=true"
-      - "--log.level=DEBUG"
+      - "--log.level=info"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
@@ -66,7 +85,7 @@ services:
       # DNS Challenge Config
       - "--certificatesresolvers.cloudflare.acme.dnschallenge=true"
       - "--certificatesresolvers.cloudflare.acme.dnschallenge.provider=cloudflare"
-      - "--certificatesresolvers.cloudflare.acme.email=${CF_API_EMAIL}"
+      - "--certificatesresolvers.cloudflare.acme.email=$$(cat /run/secrets/cf_api_email)"
       - "--certificatesresolvers.cloudflare.acme.storage=/certificates/acme.json"
       - "--certificatesresolvers.cloudflare.acme.dnschallenge.resolvers=1.1.1.1:53,8.8.8.8:53"
       # Health & Monitoring
@@ -87,7 +106,7 @@ services:
           memory: 150M
           cpus: "0.5"
   # ============================================
-  # gluetun - VPN gateway.
+  # gluetun - VPN gateway
   # ============================================
   gluetun:
     image: qmcgaw/gluetun:latest
@@ -101,6 +120,9 @@ services:
       - NET_ADMIN
     devices:
       - /dev/net/tun:/dev/net/tun
+    secrets:
+      - pia_user
+      - pia_pass
     environment:
       - LOG_LEVEL=info
       - PUID=${USER_ID}
@@ -108,20 +130,13 @@ services:
       - TZ=${TIMEZONE}
       - UMASK_SET=${USER_MASK}
       - VPN_SERVICE_PROVIDER=private internet access
-      - OPENVPN_USER=${PIA_USER}
-      - OPENVPN_PASSWORD=${PIA_PASS}
+      - OPENVPN_USER_FILE=/run/secrets/pia_user
+      - OPENVPN_PASSWORD_FILE=/run/secrets/pia_pass
       - SERVER_REGIONS=${PIA_REGION}
     volumes:
       - ${CONFIG_ROOT:-.}/gluetun:/gluetun
     labels:
       - "traefik.enable=true"
-      # Gluetun
-      - "traefik.http.routers.gluetun.service=gluetun"
-      - "traefik.http.routers.gluetun.tls=true"
-      - "traefik.http.routers.gluetun.tls.certresolver=cloudflare"
-      - "traefik.http.routers.gluetun.rule=Host(`gluetun.${DOMAIN}`)"
-      - "traefik.http.routers.gluetun.entrypoints=websecure"
-      - "traefik.http.services.gluetun.loadbalancer.server.port=8000"
       # Jellyseerr
       - "traefik.http.routers.jellyseerr.service=jellyseerr"
       - "traefik.http.routers.jellyseerr.tls=true"
@@ -136,6 +151,8 @@ services:
       - "traefik.http.routers.radarr.entrypoints=websecure"
       - "traefik.http.routers.radarr.rule=Host(`radarr.${DOMAIN}`)"
       - "traefik.http.services.radarr.loadbalancer.server.port=7878"
+    security_opt:
+      - no-new-privileges:true
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "/gluetun-entrypoint", "healthcheck"]
@@ -182,6 +199,8 @@ services:
       - "traefik.http.routers.jellyfin.tls.certresolver=cloudflare"
     devices:
       - /dev/dri:/dev/dri
+    security_opt:
+      - no-new-privileges:true
     restart: "unless-stopped"
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://127.0.0.1:8096/health"]
@@ -215,6 +234,8 @@ services:
       - APP_URL=https://jellyseerr.${DOMAIN}
     volumes:
       - ${CONFIG_ROOT:-.}/jellyseerr:/app/config
+    security_opt:
+      - no-new-privileges:true
     restart: "unless-stopped"
     healthcheck:
       test: wget --no-verbose --tries=1 --spider http://localhost:5055/api/v1/status || exit 1
@@ -254,6 +275,8 @@ services:
       - "traefik.http.routers.sonarr.rule=Host(`sonarr.${DOMAIN}`)"
       - "traefik.http.services.sonarr.loadbalancer.server.port=8989"
       - "traefik.http.routers.sonarr.tls.certresolver=cloudflare"
+    security_opt:
+      - no-new-privileges:true
     restart: "unless-stopped"
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://127.0.0.1:8989/sonarr/ping"]
@@ -290,6 +313,8 @@ services:
       - "traefik.http.routers.prowlarr.rule=Host(`prowlarr.${DOMAIN}`)"
       - "traefik.http.services.prowlarr.loadbalancer.server.port=9696"
       - "traefik.http.routers.prowlarr.tls.certresolver=cloudflare"
+    security_opt:
+      - no-new-privileges:true
     restart: "unless-stopped"
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://127.0.0.1:9696/prowlarr/ping"]
@@ -331,6 +356,8 @@ services:
       - "traefik.http.routers.qbit.rule=Host(`qbit.${DOMAIN}`)"
       - "traefik.http.services.qbit.loadbalancer.server.port=8085"
       - "traefik.http.routers.qbit.tls.certresolver=cloudflare"
+    security_opt:
+      - no-new-privileges:true
     restart: "unless-stopped"
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://127.0.0.1:8085"]
@@ -359,9 +386,11 @@ services:
       - TZ=${TIMEZONE}
       - UMASK_SET=${USER_MASK}
     volumes:
-      - ${CONFIG_ROOT:-.}/radarr:/app/config
+      - ${CONFIG_ROOT:-.}/radarr:/config
       - ${MEDIA_SHARE}/media:/media:rw
     restart: "unless-stopped"
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://127.0.0.1:7878"]
       interval: 2m
@@ -393,6 +422,8 @@ services:
     labels:
       - "traefik.enable=false"
     restart: "unless-stopped"
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       # Actually test Chrome by making a solve request (catches Chrome crashes)
       test:

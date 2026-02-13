@@ -9,5 +9,16 @@ jobs:
         uses: ndeloof/install-compose-action@v0.0.1
       - name: Setup Environment Variables
         run: cp .env.dev .env
+      - name: Create Dev Secrets
+        run: |
+          mkdir -p ./secrets
+                   # Create dummy content for all required secrets
+                   echo "dummy-cf-token-$(date)" > ./secrets/cf_dns_api_token
+                   echo "dummy-user:$(openssl passwd -apr1 dummy-pass)" > ./secrets/traefik_basic_auth
+                   echo "dummy@example.com" > ./secrets/cf_api_email
+                   echo "dummy-pia-user" > ./secrets/pia_user
+                   echo "dummy-pia-pass" > ./secrets/pia_pass
+                   chmod 600 ./secrets/*
+
       - name: Validate Docker Compose
         run: docker-compose config

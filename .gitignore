@@ -3,3 +3,5 @@
 .idea
 docker-compose.override.yml
 .vscode
+secrets/**
+.secrets/**
