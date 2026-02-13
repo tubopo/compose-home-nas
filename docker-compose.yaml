@@ -12,8 +12,6 @@ x-logging: &default-logging
 # netwokrs
 # ============================================
 networks:
-  default:
-    name: compose-home-nas
   restricted_wan:
     driver: bridge
     ipam:
@@ -36,6 +34,7 @@ services:
       - "80:80"
       - "443:443"
     environment:
+      - LOG_LEVEL=info
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
@@ -58,13 +57,11 @@ services:
       - "--providers.docker.exposedbydefault=false"
       - "--api.dashboard=true"
       - "--log.level=DEBUG"
-      # EntryPoints & Automatic HTTPS
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       - "--providers.docker.allowEmptyServices=true"
-      # Cloudflare SSL by default
       - "--entrypoints.websecure.http.tls.certresolver=cloudflare"
       # DNS Challenge Config
       - "--certificatesresolvers.cloudflare.acme.dnschallenge=true"
@@ -90,10 +87,72 @@ services:
           memory: 150M
           cpus: "0.5"
   # ============================================
-  # jellyfin server
+  # gluetun - VPN gateway.
+  # ============================================
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
+    logging: *default-logging
+    hostname: gluetun
+    networks:
+      restricted_wan:
+        ipv4_address: 172.20.30.90
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - LOG_LEVEL=info
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - UMASK_SET=${USER_MASK}
+      - VPN_SERVICE_PROVIDER=private internet access
+      - OPENVPN_USER=${PIA_USER}
+      - OPENVPN_PASSWORD=${PIA_PASS}
+      - SERVER_REGIONS=${PIA_REGION}
+    volumes:
+      - ${CONFIG_ROOT:-.}/gluetun:/gluetun
+    labels:
+      - "traefik.enable=true"
+      # Gluetun
+      - "traefik.http.routers.gluetun.service=gluetun"
+      - "traefik.http.routers.gluetun.tls=true"
+      - "traefik.http.routers.gluetun.tls.certresolver=cloudflare"
+      - "traefik.http.routers.gluetun.rule=Host(`gluetun.${DOMAIN}`)"
+      - "traefik.http.routers.gluetun.entrypoints=websecure"
+      - "traefik.http.services.gluetun.loadbalancer.server.port=8000"
+      # Jellyseerr
+      - "traefik.http.routers.jellyseerr.service=jellyseerr"
+      - "traefik.http.routers.jellyseerr.tls=true"
+      - "traefik.http.routers.jellyseerr.tls.certresolver=cloudflare"
+      - "traefik.http.routers.jellyseerr.rule=Host(`jellyseerr.${DOMAIN}`)"
+      - "traefik.http.routers.jellyseerr.entrypoints=websecure"
+      - "traefik.http.services.jellyseerr.loadbalancer.server.port=5055"
+      # Radarr
+      - "traefik.http.routers.radarr.service=radarr"
+      - "traefik.http.routers.radarr.tls=true"
+      - "traefik.http.routers.radarr.tls.certresolver=cloudflare"
+      - "traefik.http.routers.radarr.entrypoints=websecure"
+      - "traefik.http.routers.radarr.rule=Host(`radarr.${DOMAIN}`)"
+      - "traefik.http.services.radarr.loadbalancer.server.port=7878"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/gluetun-entrypoint", "healthcheck"]
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+  # ============================================
+  # jellyfin - media server
   # ============================================
   jellyfin:
-    image: lscr.io/linuxserver/jellyfin
+    image: lscr.io/linuxserver/jellyfin:latest
     container_name: jellyfin
     logging: *default-logging
     hostname: jellyfin
@@ -104,6 +163,7 @@ services:
       - "7359:7359/udp" # Client discovery (auto-detect on LAN)
       - "1900:1900/udp" # DLNA
     environment:
+      - LOG_LEVEL=info
       - JELLYFIN_PublishedServerUrl=https://jellyfin.${DOMAIN}
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
@@ -112,7 +172,7 @@ services:
     volumes:
       - ${CONFIG_ROOT:-.}/jellyfin:/config
       - ${CONFIG_ROOT:-.}/jellyfin/cache:/cache
-      - ${MEDIA_SHARE}/media:/media
+      - ${MEDIA_SHARE}/media:/media:rw
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.jellyfin.tls=true"
@@ -135,35 +195,32 @@ services:
           memory: 2G
           cpus: "2.0"
   # ============================================
-  # jellyseerr
+  # jellyseerr - request portal
   # ============================================
   jellyseerr:
-    image: fallenbagel/jellyseerr
+    image: ghcr.io/fallenbagel/jellyseerr:latest
     container_name: jellyseerr
     logging: *default-logging
-    hostname: jellyseerr
-    networks:
-      restricted_wan:
-        ipv4_address: 172.20.30.20
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
     environment:
       - LOG_LEVEL=info
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
       - UMASK_SET=${USER_MASK}
+      - PORT=5055
+      - APP_URL=https://jellyseerr.${DOMAIN}
     volumes:
       - ${CONFIG_ROOT:-.}/jellyseerr:/app/config
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.jellyseerr.tls=true"
-      - "traefik.http.routers.jellyseerr.entrypoints=websecure"
-      - "traefik.http.routers.jellyseerr.rule=Host(`jellyseerr.${DOMAIN}`)"
-      - "traefik.http.services.jellyseerr.loadbalancer.server.port=8096"
-      - "traefik.http.routers.jellyseerr.tls.certresolver=cloudflare"
+    restart: "unless-stopped"
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://127.0.0.1:5055/api/v1/status"]
-      interval: 2m
-      timeout: 10s
+      test: wget --no-verbose --tries=1 --spider http://localhost:5055/api/v1/status || exit 1
+      start_period: 20s
+      timeout: 3s
+      interval: 15s
       retries: 3
     deploy:
       resources:
@@ -171,10 +228,10 @@ services:
           memory: 512M
           cpus: "0.5"
   # ============================================
-  # sonarr
+  # sonarr - tv show monitor
   # ============================================
   sonarr:
-    image: lscr.io/linuxserver/sonarr
+    image: lscr.io/linuxserver/sonarr:latest
     container_name: sonarr
     logging: *default-logging
     hostname: sonarr
@@ -182,13 +239,14 @@ services:
       restricted_wan:
         ipv4_address: 172.20.30.40
     environment:
+      - LOG_LEVEL=info
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
       - UMASK_SET=${USER_MASK}
     volumes:
       - ${CONFIG_ROOT:-.}/sonarr:/config
-      - ${MEDIA_SHARE}/media:/media
+      - ${MEDIA_SHARE}/media:/media:rw
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.sonarr.tls=true"
@@ -206,12 +264,11 @@ services:
         limits:
           memory: 512M
           cpus: "0.5"
-
   # ============================================
-  # prowlarr
+  # prowlarr - indexer manager
   # ============================================
   prowlarr:
-    image: lscr.io/linuxserver/prowlarr
+    image: lscr.io/linuxserver/prowlarr:latest
     container_name: prowlarr
     logging: *default-logging
     hostname: prowlarr
@@ -219,6 +276,7 @@ services:
       restricted_wan:
         ipv4_address: 172.20.30.30
     environment:
+      - LOG_LEVEL=info
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
@@ -230,7 +288,7 @@ services:
       - "traefik.http.routers.prowlarr.tls=true"
       - "traefik.http.routers.prowlarr.entrypoints=websecure"
       - "traefik.http.routers.prowlarr.rule=Host(`prowlarr.${DOMAIN}`)"
-      - "traefik.http.services.prowlarr.loadbalancer.server.port=8989"
+      - "traefik.http.services.prowlarr.loadbalancer.server.port=9696"
       - "traefik.http.routers.prowlarr.tls.certresolver=cloudflare"
     restart: "unless-stopped"
     healthcheck:
@@ -239,6 +297,121 @@ services:
       timeout: 15s
       retries: 2
       start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+  # ============================================
+  # qbittorrent - torrent download client
+  # ============================================
+  qbit:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbit
+    logging: *default-logging
+    hostname: qbit
+    networks:
+      restricted_wan:
+        ipv4_address: 172.20.30.60
+    environment:
+      - LOG_LEVEL=info
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - UMASK_SET=${USER_MASK}
+      - WEBUI_PORT=8085
+      - DOCKER_MODS=ghcr.io/vuetorrent/vuetorrent-lsio-mod:latest
+    volumes:
+      - ${CONFIG_ROOT:-.}/qbit:/config
+      - ${MEDIA_SHARE}/media:/media:rw
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.qbit.tls=true"
+      - "traefik.http.routers.qbit.entrypoints=websecure"
+      - "traefik.http.routers.qbit.rule=Host(`qbit.${DOMAIN}`)"
+      - "traefik.http.services.qbit.loadbalancer.server.port=8085"
+      - "traefik.http.routers.qbit.tls.certresolver=cloudflare"
+    restart: "unless-stopped"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:8085"]
+      interval: 1m
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+  # ============================================
+  # radarr - movie monitor
+  # ============================================
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    logging: *default-logging
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    environment:
+      - LOG_LEVEL=info
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - UMASK_SET=${USER_MASK}
+    volumes:
+      - ${CONFIG_ROOT:-.}/radarr:/app/config
+      - ${MEDIA_SHARE}/media:/media:rw
+    restart: "unless-stopped"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:7878"]
+      interval: 2m
+      timeout: 15s
+      retries: 2
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+  # ============================================
+  # flaresolverr - cloudflare bypass
+  # ============================================
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    logging: *default-logging
+    hostname: flaresolverr
+    networks:
+      restricted_wan:
+        ipv4_address: 172.20.30.80
+    environment:
+      - LOG_LEVEL=info
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - UMASK_SET=${USER_MASK}
+    labels:
+      - "traefik.enable=false"
+    restart: "unless-stopped"
+    healthcheck:
+      # Actually test Chrome by making a solve request (catches Chrome crashes)
+      test:
+        [
+          "CMD",
+          "curl",
+          "-sf",
+          "-X",
+          "POST",
+          "-H",
+          "Content-Type: application/json",
+          "-d",
+          '{"cmd":"request.get","url":"http://localhost:8191/","maxTimeout":30000}',
+          "http://localhost:8191/v1",
+        ]
+      interval: 10m
+      timeout: 60s
+      retries: 2
+      start_period: 2m
     deploy:
       resources:
         limits:
