@@ -12,18 +12,11 @@ x-logging: &default-logging
 # netwokrs
 # ============================================
 networks:
-  default:
-    name: compose-home-nas
   restricted_wan:
     driver: bridge
     ipam:
       config:
         - subnet: 172.20.30.0/24
-  vpn-net:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 10.8.1.0/24
 
 services:
   # ============================================
@@ -41,6 +34,7 @@ services:
       - "80:80"
       - "443:443"
     environment:
+      - LOG_LEVEL=info
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
@@ -63,13 +57,11 @@ services:
       - "--providers.docker.exposedbydefault=false"
       - "--api.dashboard=true"
       - "--log.level=DEBUG"
-      # EntryPoints & Automatic HTTPS
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       - "--providers.docker.allowEmptyServices=true"
-      # Cloudflare SSL by default
       - "--entrypoints.websecure.http.tls.certresolver=cloudflare"
       # DNS Challenge Config
       - "--certificatesresolvers.cloudflare.acme.dnschallenge=true"
@@ -105,39 +97,46 @@ services:
     networks:
       restricted_wan:
         ipv4_address: 172.20.30.90
-      vpn-net:
     cap_add:
       - NET_ADMIN
     devices:
       - /dev/net/tun:/dev/net/tun
-    ports:
-      - "7878:7878/tcp" # Radarr
-      - "5055:5055/tcp" # Jellyseerr
     environment:
-      - LOG_LEVEL=debug
+      - LOG_LEVEL=info
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
       - UMASK_SET=${USER_MASK}
-      # VPN Configuration
-      - VPN_SERVICE_PROVIDER=tailscale
-      - VPN_TYPE=tailscale
-      - TAILSCALE_AUTH_KEY=${TAILSCALE_AUTH_KEY:-}
-      - TAILSCALE_HOSTNAME=arr-services-vpn
-      - TAILSCALE_TAGS=tag:radarr,tag:jellyseerr,docker
-      # Network
-      - FIREWALL_VPN_INPUT_PORTS=7878,5055 # Radarr & Jellyseerr ports
-      - SERVER_CITIES=${TAILSCALE_EXIT_NODE_CITY:-}
-      - DNS_ADDRESS=1.1.1.1
-      - DNS_PLAINTEXT_ADDRESS=1.1.1.1
-      # Health checks
-      - HEALTH_VPN_DURATION_INITIAL=30s
-      - HEALTH_VPN_DURATION=1m
+      - VPN_SERVICE_PROVIDER=private internet access
+      - OPENVPN_USER=${PIA_USER}
+      - OPENVPN_PASSWORD=${PIA_PASS}
+      - SERVER_REGIONS=${PIA_REGION}
     volumes:
       - ${CONFIG_ROOT:-.}/gluetun:/gluetun
     labels:
-      - "traefik.enable=false"
-    restart: "unless-stopped"
+      - "traefik.enable=true"
+      # Gluetun
+      - "traefik.http.routers.gluetun.service=gluetun"
+      - "traefik.http.routers.gluetun.tls=true"
+      - "traefik.http.routers.gluetun.tls.certresolver=cloudflare"
+      - "traefik.http.routers.gluetun.rule=Host(`gluetun.${DOMAIN}`)"
+      - "traefik.http.routers.gluetun.entrypoints=websecure"
+      - "traefik.http.services.gluetun.loadbalancer.server.port=8000"
+      # Jellyseerr
+      - "traefik.http.routers.jellyseerr.service=jellyseerr"
+      - "traefik.http.routers.jellyseerr.tls=true"
+      - "traefik.http.routers.jellyseerr.tls.certresolver=cloudflare"
+      - "traefik.http.routers.jellyseerr.rule=Host(`jellyseerr.${DOMAIN}`)"
+      - "traefik.http.routers.jellyseerr.entrypoints=websecure"
+      - "traefik.http.services.jellyseerr.loadbalancer.server.port=5055"
+      # Radarr
+      - "traefik.http.routers.radarr.service=radarr"
+      - "traefik.http.routers.radarr.tls=true"
+      - "traefik.http.routers.radarr.tls.certresolver=cloudflare"
+      - "traefik.http.routers.radarr.entrypoints=websecure"
+      - "traefik.http.routers.radarr.rule=Host(`radarr.${DOMAIN}`)"
+      - "traefik.http.services.radarr.loadbalancer.server.port=7878"
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "/gluetun-entrypoint", "healthcheck"]
       interval: 1m
@@ -164,12 +163,12 @@ services:
       - "7359:7359/udp" # Client discovery (auto-detect on LAN)
       - "1900:1900/udp" # DLNA
     environment:
+      - LOG_LEVEL=info
       - JELLYFIN_PublishedServerUrl=https://jellyfin.${DOMAIN}
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
       - UMASK_SET=${USER_MASK}
-
     volumes:
       - ${CONFIG_ROOT:-.}/jellyfin:/config
       - ${CONFIG_ROOT:-.}/jellyfin/cache:/cache
@@ -202,41 +201,23 @@ services:
     image: ghcr.io/fallenbagel/jellyseerr:latest
     container_name: jellyseerr
     logging: *default-logging
-    hostname: jellyseerr
-    networks:
-      restricted_wan:
-        ipv4_address: 172.20.30.20
     network_mode: "service:gluetun"
     depends_on:
       gluetun:
         condition: service_healthy
-      radarr:
-        condition: service_healthy
-      sonarr:
-        condition: service_healthy
-      jellyfin:
-        condition: service_healthy
     environment:
-      - LOG_LEVEL=debug
+      - LOG_LEVEL=info
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
       - UMASK_SET=${USER_MASK}
       - PORT=5055
       - APP_URL=https://jellyseerr.${DOMAIN}
-      - TRUST_PROXY=1
     volumes:
       - ${CONFIG_ROOT:-.}/jellyseerr:/app/config
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.jellyseerr.tls=true"
-      - "traefik.http.routers.jellyseerr.entrypoints=websecure"
-      - "traefik.http.routers.jellyseerr.rule=Host(`jellyseerr.${DOMAIN}`)"
-      - "traefik.http.services.jellyseerr.loadbalancer.server.port=5055"
-      - "traefik.http.routers.jellyseerr.tls.certresolver=cloudflare"
     restart: "unless-stopped"
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://127.0.0.1:5055/api/v1/status"]
+      test: wget --no-verbose --tries=1 --spider http://localhost:5055/api/v1/status || exit 1
       start_period: 20s
       timeout: 3s
       interval: 15s
@@ -258,6 +239,7 @@ services:
       restricted_wan:
         ipv4_address: 172.20.30.40
     environment:
+      - LOG_LEVEL=info
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
@@ -294,6 +276,7 @@ services:
       restricted_wan:
         ipv4_address: 172.20.30.30
     environment:
+      - LOG_LEVEL=info
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
@@ -331,6 +314,7 @@ services:
       restricted_wan:
         ipv4_address: 172.20.30.60
     environment:
+      - LOG_LEVEL=info
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
@@ -364,15 +348,12 @@ services:
     image: lscr.io/linuxserver/radarr:latest
     container_name: radarr
     logging: *default-logging
-    hostname: radarr
-    networks:
-      restricted_wan:
-        ipv4_address: 172.20.30.70
     network_mode: "service:gluetun"
     depends_on:
       gluetun:
         condition: service_healthy
     environment:
+      - LOG_LEVEL=info
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
@@ -380,13 +361,6 @@ services:
     volumes:
       - ${CONFIG_ROOT:-.}/radarr:/app/config
       - ${MEDIA_SHARE}/media:/media:rw
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.radarr.tls=true"
-      - "traefik.http.routers.radarr.entrypoints=websecure"
-      - "traefik.http.routers.radarr.rule=Host(`radarr.${DOMAIN}`)"
-      - "traefik.http.services.radarr.loadbalancer.server.port=7878"
-      - "traefik.http.routers.radarr.tls.certresolver=cloudflare"
     restart: "unless-stopped"
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://127.0.0.1:7878"]
