@@ -13,7 +13,7 @@
 
 ## 🏗️ Setup
 
-### File Structure
+### 📁 File Structure
 
 ```txt
 ${MEDIA_SHARE}
@@ -76,8 +76,68 @@ echo "pia-username" > ${SECRETS}/pia_user
 echo "pia-password" > ${SECRETS}/pia_pass
 ```
 
+## 🔄 Overview
 
-## 🔄 Media Flow
+```mermaid
+
+graph TB
+    subgraph Internet
+        U[You - Browser]
+        DNS[Cloudflare DNS]
+        LE[Let's Encrypt]
+    end
+
+    subgraph "Your Home NAS"
+        subgraph "Gateway"
+            T[Traefik<br/>Reverse Proxy]
+        end
+
+        subgraph "VPN Zone"
+            G[Gluetun<br/>VPN Gateway]
+            subgraph "Apps Behind VPN"
+                R[Radarr]
+                S[Sonarr]
+                P[Prowlarr]
+                JS[Jellyseerr]
+            end
+        end
+
+        subgraph "Local Zone"
+            subgraph "Download Client"
+                Q[QBittorrent]
+            end
+            subgraph "Media Server"
+                J[Jellyfin]
+            end
+        end
+
+        subgraph "Storage"
+            M[(Media Library)]
+            C[(Configs)]
+        end
+    end
+
+    U --> DNS
+    DNS --> T
+    T --> LE
+    
+    T --> J
+    T --> JS
+    T --> R
+    T --> S
+    T --> P
+    
+    JS --> R & S
+    R & S --> P
+    P --> Q
+    Q --> M
+    M --> J
+    
+    G --> R & S & P & JS
+    R & S & J & Q --> C
+```
+
+### 🔄 Media Flow
 
 ```mermaid
 flowchart LR
@@ -111,7 +171,7 @@ flowchart LR
 ```
 
 
-## 🔄 SSL Certificate Flow (DNS-01 Challenge)
+### 🔄 SSL Certificate Flow (DNS-01 Challenge)
 
 ```mermaid
 sequenceDiagram
