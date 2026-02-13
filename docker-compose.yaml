@@ -7,7 +7,6 @@ x-logging: &default-logging
     max-size: "10m"
     max-file: "3"
     compress: "true"
-
 # ============================================
 # netwokrs
 # ============================================
@@ -17,7 +16,6 @@ networks:
     ipam:
       config:
         - subnet: 172.20.30.0/24
-
 # ============================================
 # secrets
 # ============================================
@@ -164,7 +162,7 @@ services:
       resources:
         limits:
           memory: 256M
-          cpus: "0.25"
+          cpus: "0.1"
   # ============================================
   # jellyfin - media server
   # ============================================
@@ -285,8 +283,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
-          cpus: "0.5"
+          memory: 256M
+          cpus: "0.1"
   # ============================================
   # prowlarr - indexer manager
   # ============================================
@@ -325,8 +323,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
-          cpus: "0.5"
+          memory: 256M
+          cpus: "0.1"
   # ============================================
   # qbittorrent - torrent download client
   # ============================================
@@ -366,8 +364,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
-          cpus: "0.5"
+          memory: 256M
+          cpus: "0.1"
   # ============================================
   # radarr - movie monitor
   # ============================================
@@ -400,8 +398,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
-          cpus: "0.5"
+          memory: 256M
+          cpus: "0.1"
   # ============================================
   # flaresolverr - cloudflare bypass
   # ============================================
