@@ -401,6 +401,46 @@ services:
           memory: 256M
           cpus: "0.1"
   # ============================================
+  # bazarr - subtitles manager
+  # ============================================
+  bazarr:
+    image: ghcr.io/hotio/bazarr
+    container_name: bazarr
+    logging: *default-logging
+    hostname: bazarr
+    networks:
+      restricted_wan:
+        ipv4_address: 172.20.30.70
+    environment:
+      - LOG_LEVEL=info
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - UMASK_SET=${USER_MASK}
+      - WEBUI_PORTS=6767/tcp
+    volumes:
+      - ${CONFIG_ROOT:-.}/bazarr:/config
+      - ${MEDIA_SHARE}/media:/media:rw
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bazarr.tls=true"
+      - "traefik.http.routers.bazarr.entrypoints=websecure"
+      - "traefik.http.routers.bazarr.rule=Host(`bazarr.${DOMAIN}`)"
+      - "traefik.http.services.bazarr.loadbalancer.server.port=6767"
+      - "traefik.http.routers.bazarr.tls.certresolver=cloudflare"
+    security_opt:
+      - no-new-privileges:true
+    restart: "unless-stopped"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:6767/bazarr/ping"]
+      interval: 1m
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.1"
+  # ============================================
   # flaresolverr - cloudflare bypass
   # ============================================
   flaresolverr:
