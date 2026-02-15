@@ -12,7 +12,11 @@ x-logging: &default-logging
 # ============================================
 networks:
   restricted_wan:
-    external: true
+    name: restricted_wan
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.30.0/24
 # ============================================
 # secrets
 # ============================================

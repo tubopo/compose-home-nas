@@ -23,7 +23,6 @@ jobs:
       - name: Validate Docker Compose
         run: |
           docker compose \
-                -f docker-compose.media.yaml \
-                -f docker-compose.network.yaml \
-                -f docker-compose.traefik.yaml \
+                -f ./traefik/docker-compose.yaml \
+                -f ./arr/docker-compose.yaml \
                 config
