@@ -12,97 +12,16 @@ x-logging: &default-logging
 # ============================================
 networks:
   restricted_wan:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.30.0/24
+    external: true
 # ============================================
 # secrets
 # ============================================
 secrets:
-  cf_dns_api_token:
-    file: ${SECRETS}/cf_dns_api_token
-  traefik_basic_auth:
-    file: ${SECRETS}/traefik_basic_auth
-  cf_api_email:
-    file: ${SECRETS}/cf_api_email
   pia_user:
     file: ${SECRETS}/pia_user
   pia_pass:
     file: ${SECRETS}/pia_pass
 services:
-  # ============================================
-  # traefik - application proxy
-  # ============================================
-  traefik:
-    image: traefik:v3.6.7
-    container_name: traefik
-    logging: *default-logging
-    hostname: traefik
-    networks:
-      restricted_wan:
-        ipv4_address: 172.20.30.10
-    ports:
-      - "80:80"
-      - "443:443"
-    secrets:
-      - cf_dns_api_token
-      - traefik_basic_auth
-      - cf_api_email
-    environment:
-      - LOG_LEVEL=info
-      - PUID=${USER_ID}
-      - PGID=${GROUP_ID}
-      - TZ=${TIMEZONE}
-      - UMASK_SET=${USER_MASK}
-      - CF_DNS_API_TOKEN_FILE=/run/secrets/cf_dns_api_token
-      - CF_API_EMAIL_FILE=/run/secrets/cf_api_email
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ${CONFIG_ROOT}/traefik/certificates:/certificates:rw
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.dashboard.entrypoints=websecure"
-      - "traefik.http.routers.dashboard.rule=Host(`traefik.${DOMAIN}`)"
-      - "traefik.http.routers.dashboard.tls=true"
-      - "traefik.http.routers.dashboard.tls.certresolver=cloudflare"
-      - "traefik.http.routers.dashboard.service=api@internal"
-      - "traefik.http.routers.dashboard.middlewares=auth"
-      - "traefik.http.middlewares.auth.basicauth.usersfile=/run/secrets/traefik_basic_auth"
-    command:
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--api.dashboard=true"
-      - "--log.level=info"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
-      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
-      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
-      - "--providers.docker.allowEmptyServices=true"
-      - "--entrypoints.websecure.http.tls.certresolver=cloudflare"
-      # DNS Challenge Config
-      - "--certificatesresolvers.cloudflare.acme.dnschallenge=true"
-      - "--certificatesresolvers.cloudflare.acme.dnschallenge.provider=cloudflare"
-      - "--certificatesresolvers.cloudflare.acme.email=$$(cat /run/secrets/cf_api_email)"
-      - "--certificatesresolvers.cloudflare.acme.storage=/certificates/acme.json"
-      - "--certificatesresolvers.cloudflare.acme.dnschallenge.resolvers=1.1.1.1:53,8.8.8.8:53"
-      # Health & Monitoring
-      - "--ping=true"
-      - "--ping.entrypoint=web"
-    security_opt:
-      - no-new-privileges:true
-    restart: "unless-stopped"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:80/ping || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 5s
-    deploy:
-      resources:
-        limits:
-          memory: 150M
-          cpus: "0.5"
   # ============================================
   # gluetun - VPN gateway
   # ============================================
@@ -400,89 +319,3 @@ services:
         limits:
           memory: 256M
           cpus: "0.1"
-  # ============================================
-  # bazarr - subtitles manager
-  # ============================================
-  bazarr:
-    image: ghcr.io/hotio/bazarr
-    container_name: bazarr
-    logging: *default-logging
-    hostname: bazarr
-    networks:
-      restricted_wan:
-        ipv4_address: 172.20.30.70
-    environment:
-      - LOG_LEVEL=info
-      - PUID=${USER_ID}
-      - PGID=${GROUP_ID}
-      - TZ=${TIMEZONE}
-      - UMASK_SET=${USER_MASK}
-      - WEBUI_PORTS=6767/tcp
-    volumes:
-      - ${CONFIG_ROOT:-.}/bazarr:/config
-      - ${MEDIA_SHARE}/media:/media:rw
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.bazarr.tls=true"
-      - "traefik.http.routers.bazarr.entrypoints=websecure"
-      - "traefik.http.routers.bazarr.rule=Host(`bazarr.${DOMAIN}`)"
-      - "traefik.http.services.bazarr.loadbalancer.server.port=6767"
-      - "traefik.http.routers.bazarr.tls.certresolver=cloudflare"
-    security_opt:
-      - no-new-privileges:true
-    restart: "unless-stopped"
-    healthcheck:
-      test: ["CMD", "curl", "--fail", "http://127.0.0.1:6767/bazarr/ping"]
-      interval: 1m
-      retries: 10
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: "0.1"
-  # ============================================
-  # flaresolverr - cloudflare bypass
-  # ============================================
-  flaresolverr:
-    image: ghcr.io/flaresolverr/flaresolverr:latest
-    container_name: flaresolverr
-    logging: *default-logging
-    hostname: flaresolverr
-    networks:
-      restricted_wan:
-        ipv4_address: 172.20.30.80
-    environment:
-      - LOG_LEVEL=info
-      - PUID=${USER_ID}
-      - PGID=${GROUP_ID}
-      - TZ=${TIMEZONE}
-      - UMASK_SET=${USER_MASK}
-    labels:
-      - "traefik.enable=false"
-    restart: "unless-stopped"
-    security_opt:
-      - no-new-privileges:true
-    healthcheck:
-      # Actually test Chrome by making a solve request (catches Chrome crashes)
-      test:
-        [
-          "CMD",
-          "curl",
-          "-sf",
-          "-X",
-          "POST",
-          "-H",
-          "Content-Type: application/json",
-          "-d",
-          '{"cmd":"request.get","url":"http://localhost:8191/","maxTimeout":30000}',
-          "http://localhost:8191/v1",
-        ]
-      interval: 10m
-      timeout: 60s
-      retries: 2
-      start_period: 2m
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: "0.5"

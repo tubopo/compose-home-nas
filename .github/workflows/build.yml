@@ -21,4 +21,8 @@ jobs:
                    chmod 600 ./secrets/*
 
       - name: Validate Docker Compose
-        run: docker-compose config
+        run: |
+          docker compose \
+                -f ./traefik/docker-compose.yaml \
+                -f ./arr/docker-compose.yaml \
+                config
