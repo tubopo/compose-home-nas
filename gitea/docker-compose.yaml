@@ -1,0 +1,125 @@
+# ============================================
+# logging
+# ============================================
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+    compress: "true"
+# ============================================
+# netwokrs
+# ============================================
+networks:
+  restricted_wan:
+    external: true
+  internal_db:
+    driver: bridge
+# ============================================
+# secrets
+# ============================================
+secrets:
+  postgres_user:
+    file: ${SECRETS}/pg_user
+  postgres_password:
+    file: ${SECRETS}/pg_pas
+  gitea_secret_key:
+    file: ${SECRETS}/gitea_key
+  gitea_internal_token:
+    file: ${SECRETS}/gitea_token
+services:
+  # ============================================
+  # gitea - git management
+  # ============================================
+  gitea:
+    image: docker.gitea.com/gitea:latest
+    container_name: gitea
+    logging: *default-logging
+    hostname: gitea
+    depends_on:
+      postgres-gitea:
+        condition: service_healthy
+    networks:
+      restricted_wan:
+        ipv4_address: 172.20.30.70
+      internal_db:
+    secrets:
+      - postgres_password
+      - postgres_user
+      - gitea_secret_key
+      - gitea_internal_token
+    environment:
+      - LOG_LEVEL=info
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - UMASK_SET=${USER_MASK}
+      - GITEA__database__DB_TYPE=postgres
+      - GITEA__database__HOST=postgres-gitea:5432
+      - GITEA__database__NAME=gitea
+      - GITEA__database__USER_FILE=/run/secrets/postgres_user
+      - GITEA__database__PASSWD_FILE=/run/secrets/postgres_password
+      - GITEA__security__SECRET_KEY_FILE=/run/secrets/gitea_secret_key
+      - GITEA__security__INTERNAL_TOKEN_FILE=/run/secrets/gitea_internal_token
+    volumes:
+      - ${CONFIG_ROOT:-.}/gitea:/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gitea.tls=true"
+      - "traefik.http.routers.gitea.entrypoints=websecure"
+      - "traefik.http.routers.gitea.rule=Host(`gitea.${DOMAIN}`)"
+      - "traefik.http.services.gitea.loadbalancer.server.port=3000"
+      - "traefik.http.routers.gitea.tls.certresolver=cloudflare"
+    security_opt:
+      - no-new-privileges:true
+    restart: "unless-stopped"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:3000/api/healthz"]
+      interval: 30s
+      retries: 3
+      start_period: 60s
+      timeout: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1"
+  # ============================================
+  # postgres - db
+  # ============================================
+  postgres-gitea:
+    image: docker.io/library/postgres:17
+    container_name: postgres-gitea
+    logging: *default-logging
+    hostname: postgres-gitea
+    networks:
+      - internal_db
+    secrets:
+      - postgres_password
+      - postgres_user
+    shm_size: 256mb # pg shared memory
+    environment:
+      - LOG_LEVEL=info
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - UMASK_SET=${USER_MASK}
+      - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
+      - POSTGRES_USER_FILE=/run/secrets/postgres_user
+    volumes:
+      - ${CONFIG_ROOT:-.}/postgres/gitea:/var/lib/postgresql/data
+    labels:
+      - "traefik.enable=false"
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $(cat /run/secrets/postgres_user)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1"
