@@ -25,4 +25,6 @@ jobs:
           docker compose \
                 -f ./traefik/docker-compose.yaml \
                 -f ./arr/docker-compose.yaml \
+                -f ./gitea/docker-compose.yaml \
+                -f ./immich/docker-compose.yaml \
                 config
