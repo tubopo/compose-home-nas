@@ -1,0 +1,201 @@
+# guide: https://docs.immich.app/install/docker-compose
+
+# ============================================
+# logging
+# ============================================
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+    compress: "true"
+# ============================================
+# netwokrs
+# ============================================
+networks:
+  restricted_wan:
+    external: true
+  internal_immich:
+    driver: bridge
+# ============================================
+# secrets
+# ============================================
+secrets:
+  postgres_user:
+    file: ${SECRETS}/pg_user
+  postgres_password:
+    file: ${SECRETS}/pg_pas
+
+services:
+  # ============================================
+  # immich - photos
+  # ============================================
+  immich-server:
+    container_name: immich_server
+    image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
+    logging: *default-logging
+    hostname: immich-server
+    secrets:
+      - postgres_password
+      - postgres_user
+    networks:
+      internal_immich:
+      restricted_wan:
+        ipv4_address: 172.20.30.80
+    depends_on:
+      redis:
+        condition: service_healthy
+      database:
+        condition: service_healthy
+    environment:
+      - LOG_LEVEL=info
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - UMASK_SET=${USER_MASK}
+      - DB_HOSTNAME=immich_postgres
+      - DB_PASSWORD_FILE=/run/secrets/postgres_password
+      - DB_USERNAME_FILE=/run/secrets/postgres_user
+    # extends:
+    #   file: hwaccel.transcoding.yml
+    #   service: cpu # set to one of [nvenc, quicksync, rkmpp, vaapi, vaapi-wsl] for accelerated transcoding
+    volumes:
+      # Do not edit the next line. If you want to change the media storage location on your system, edit the value of UPLOAD_LOCATION in the .env file
+      - ${UPLOAD_LOCATION}:/data:rw
+      - /volume1/@home/tubopo/Photos/Photos:/external_photos:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.immich.service=immich"
+      - "traefik.http.routers.immich.tls=true"
+      - "traefik.http.routers.immich.tls.certresolver=cloudflare"
+      - "traefik.http.routers.immich.rule=Host(`immich.${DOMAIN}`)"
+      - "traefik.http.routers.immich.entrypoints=websecure"
+      - "traefik.http.services.immich.loadbalancer.server.port=2283"
+    security_opt:
+      - no-new-privileges:true
+    restart: "unless-stopped"
+    # healthcheck:
+    #   test: ["CMD", "node", "/usr/src/app/dist/utils/healthcheck.js"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+    #   start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+          cpus: "1"
+  # ============================================
+  # ml
+  # ============================================
+  immich-machine-learning:
+    container_name: immich_machine_learning
+    # For hardware acceleration, add one of -[armnn, cuda, rocm, openvino, rknn] to the image tag.
+    # Example tag: ${IMMICH_VERSION:-release}-cuda
+    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}
+    # extends: # uncomment this section for hardware acceleration - see https://docs.immich.app/features/ml-hardware-acceleration
+    #   file: hwaccel.ml.yml
+    #   service: cpu # set to one of [armnn, cuda, rocm, openvino, openvino-wsl, rknn] for accelerated inference - use the `-wsl` version for WSL2 where applicable
+    logging: *default-logging
+    hostname: immich_machine_learning
+    networks:
+      - internal_immich
+    volumes:
+      - ${UPLOAD_LOCATION}:/data:rw
+      - ${CONFIG_ROOT:-.}/immich/cache:/cache:rw
+      - ${CONFIG_ROOT:-.}/immich/cache:/.cache:rw
+      - ${CONFIG_ROOT:-.}/immich/cache:/.config:rw
+      - ${CONFIG_ROOT:-.}/immich/matplotlib:/matplotlib:rw
+    environment:
+      - LOG_LEVEL=info
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - UMASK_SET=${USER_MASK}
+      - MPLCONFIGDIR=/matplotlib
+    labels:
+      - "traefik.enable=false"
+    security_opt:
+      - no-new-privileges:true
+    restart: "unless-stopped"
+    # healthcheck:
+    #   test: ["CMD", "curl", "--fail", "http://127.0.0.1:3003/health"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+    #   start_period: 90s # ML models need more time to load
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+          cpus: "1"
+
+  # ============================================
+  # redis - cache
+  # ============================================
+  redis:
+    container_name: immich_redis
+    image: docker.io/valkey/valkey:9@sha256:546304417feac0874c3dd576e0952c6bb8f06bb4093ea0c9ca303c73cf458f63
+    logging: *default-logging
+    networks:
+      - internal_immich
+    environment:
+      - LOG_LEVEL=info
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - UMASK_SET=${USER_MASK}
+    volumes:
+      - ${CONFIG_ROOT:-.}/redis/immich:/data:rw
+    labels:
+      - "traefik.enable=false"
+    security_opt:
+      - no-new-privileges:true
+    restart: "unless-stopped"
+    healthcheck:
+      test: redis-cli ping || exit 1
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1"
+  # ============================================
+  # postgres - db
+  # ============================================
+  database:
+    container_name: immich_postgres
+    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+    hostname: immich_postgres
+    secrets:
+      - postgres_password
+      - postgres_user
+    networks:
+      - internal_immich
+    environment:
+      - LOG_LEVEL=info
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - UMASK_SET=${USER_MASK}
+      - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
+      - POSTGRES_USER_FILE=/run/secrets/postgres_user
+      - POSTGRES_INITDB_ARGS="--data-checksums"
+      - DB_STORAGE_TYPE=HDD
+    volumes:
+      # Do not edit the next line. If you want to change the database storage location on your system, edit the value of DB_DATA_LOCATION in the .env file
+      - ${CONFIG_ROOT:-.}/postgres/immich:/var/lib/postgresql/data:rw
+    labels:
+      - "traefik.enable=false"
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $(cat /run/secrets/postgres_user)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1"
