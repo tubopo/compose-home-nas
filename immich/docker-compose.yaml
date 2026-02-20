@@ -45,6 +45,12 @@ services:
         condition: service_healthy
       database:
         condition: service_healthy
+      immich-machine-learning:
+        condition: service_healthy
+    devices:
+      - /dev/dri/renderD128:/dev/dri/renderD128
+      - /dev/dri/card0:/dev/dri/card0
+      - /dev/dri:/dev/dri
     environment:
       - LOG_LEVEL=info
       - PUID=${USER_ID}
@@ -55,9 +61,12 @@ services:
       - DB_PASSWORD_FILE=/run/secrets/postgres_password
       - DB_USERNAME_FILE=/run/secrets/postgres_user
       - REDIS_HOSTNAME=immich_redis
+      - IMMICH_MACHINE_LEARNING_HOST=immich-machine-learning
+      - IMMICH_MACHINE_LEARNING_PORT=3003
     volumes:
       - ${UPLOAD_LOCATION}:/data:rw
-      - /volume1/@home/tubopo/Photos/Photos:/external_photos:ro
+      - ${EXTERNAL_LIB_1}:/external_photos:ro
+      - ${EXTERNAL_LIB_2}:/external_photos_1:ro
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.immich.service=immich"
@@ -78,8 +87,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4G
-          cpus: "1"
+          memory: 3G
+          cpus: "2"
   # ============================================
   # ml
   # ============================================
@@ -87,7 +96,7 @@ services:
     container_name: immich_machine_learning
     image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}-openvino
     logging: *default-logging
-    hostname: immich_machine_learning
+    hostname: immich-machine-learning
     networks:
       - internal_immich
     volumes:
@@ -103,7 +112,10 @@ services:
       - TZ=${TIMEZONE}
       - UMASK_SET=${USER_MASK}
       - MPLCONFIGDIR=/matplotlib
+      - TRANSFORMERS_CACHE=/cache/huggingface
     devices:
+      - /dev/dri/renderD128:/dev/dri/renderD128
+      - /dev/dri/card0:/dev/dri/card0
       - /dev/dri:/dev/dri
     labels:
       - "traefik.enable=false"
@@ -120,7 +132,7 @@ services:
       resources:
         limits:
           memory: 3G
-          cpus: "1"
+          cpus: "2"
   # ============================================
   # redis - cache
   # ============================================
