@@ -1,30 +1,43 @@
-on: push
-jobs:
-  validate-docker-compose:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-      - name: Install Docker Compose
-        uses: ndeloof/install-compose-action@v0.0.1
-      - name: Setup Environment Variables
-        run: cp .env.dev .env
-      - name: Create Dev Secrets
-        run: |
-          mkdir -p ./secrets
-                   # Create dummy content for all required secrets
-                   echo "dummy-cf-token-$(date)" > ./secrets/cf_dns_api_token
-                   echo "dummy-user:$(openssl passwd -apr1 dummy-pass)" > ./secrets/traefik_basic_auth
-                   echo "dummy@example.com" > ./secrets/cf_api_email
-                   echo "dummy-pia-user" > ./secrets/pia_user
-                   echo "dummy-pia-pass" > ./secrets/pia_pass
-                   chmod 600 ./secrets/*
+name: Docker Compose Matrix Validation
 
-      - name: Validate Docker Compose
+on: push
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [traefik, arr, gitea, immich]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Test Environment
         run: |
+          # Use .env.dev
+          cp .env.dev .env
+
+          # Create secrets
+          mkdir -p ./secrets
+
+          echo "dummy-cf-token-$(date +%s)" > ./secrets/cf_dns_api_token
+          echo "testuser:$(openssl passwd -apr1 testpass123)" > ./secrets/traefik_basic_auth
+          echo "test@example.com" > ./secrets/cf_api_email
+          echo "test-pia-user" > ./secrets/pia_user
+          echo "test-pia-pass" > ./secrets/pia_pass
+          echo "postgres" > ./secrets/pg_user
+          echo "postgres-pass-$(date +%s)" > ./secrets/pg_pas
+          echo "gitea-key-$(openssl rand -hex 16)" > ./secrets/gitea_key
+          echo "gitea-token-$(openssl rand -hex 32)" > ./secrets/gitea_token
+
+          chmod 600 ./secrets/*
+
+      - name: Validate ${{ matrix.service }}/docker-compose.yaml
+        run: |
+          echo "🔍 Validating ${{ matrix.service }}..."
           docker compose \
-                -f ./traefik/docker-compose.yaml \
-                -f ./arr/docker-compose.yaml \
-                -f ./gitea/docker-compose.yaml \
-                -f ./immich/docker-compose.yaml \
-                config
+            -f ${{ matrix.service }}/docker-compose.yaml \
+            --env-file .env \
+            config
+          echo "✅ ${{ matrix.service }} is valid!"
