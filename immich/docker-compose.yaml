@@ -62,7 +62,6 @@ services:
       - DB_USERNAME_FILE=/run/secrets/postgres_user
       - REDIS_HOSTNAME=immich_redis
       - IMMICH_MACHINE_LEARNING_HOST=immich-machine-learning
-      - IMMICH_MACHINE_LEARNING_PORT=3003
     volumes:
       - ${UPLOAD_LOCATION}:/data:rw
       - ${EXTERNAL_LIB_1}:/external_photos:ro
@@ -78,12 +77,8 @@ services:
     security_opt:
       - no-new-privileges:true
     restart: "unless-stopped"
-    # healthcheck:
-    #   test: ["CMD", "node", "/usr/src/app/dist/utils/healthcheck.js"]
-    #   interval: 30s
-    #   timeout: 10s
-    #   retries: 3
-    #   start_period: 60s
+    healthcheck:
+      disable: false
     deploy:
       resources:
         limits:
@@ -122,12 +117,8 @@ services:
     security_opt:
       - no-new-privileges:true
     restart: "unless-stopped"
-    # healthcheck:
-    #   test: ["CMD", "curl", "--fail", "http://127.0.0.1:3003/health"]
-    #   interval: 30s
-    #   timeout: 10s
-    #   retries: 3
-    #   start_period: 90s # ML models need more time to load
+    healthcheck:
+      disable: false
     deploy:
       resources:
         limits:
