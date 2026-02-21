@@ -5,3 +5,4 @@ docker-compose.override.yml
 .vscode
 secrets/**
 .secrets/**
+app.ini
