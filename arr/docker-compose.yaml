@@ -54,13 +54,13 @@ services:
       - ${CONFIG_ROOT:-.}/gluetun:/gluetun
     labels:
       - "traefik.enable=true"
-      # Jellyseerr
-      - "traefik.http.routers.jellyseerr.service=jellyseerr"
-      - "traefik.http.routers.jellyseerr.tls=true"
-      - "traefik.http.routers.jellyseerr.tls.certresolver=cloudflare"
-      - "traefik.http.routers.jellyseerr.rule=Host(`jellyseerr.${DOMAIN}`)"
-      - "traefik.http.routers.jellyseerr.entrypoints=websecure"
-      - "traefik.http.services.jellyseerr.loadbalancer.server.port=5055"
+      # seerr
+      - "traefik.http.routers.seerr.service=seerr"
+      - "traefik.http.routers.seerr.tls=true"
+      - "traefik.http.routers.seerr.tls.certresolver=cloudflare"
+      - "traefik.http.routers.seerr.rule=Host(`seerr.${DOMAIN}`)"
+      - "traefik.http.routers.seerr.entrypoints=websecure"
+      - "traefik.http.services.seerr.loadbalancer.server.port=5055"
       # Radarr
       - "traefik.http.routers.radarr.service=radarr"
       - "traefik.http.routers.radarr.tls=true"
@@ -131,11 +131,12 @@ services:
           memory: 2G
           cpus: "2.0"
   # ============================================
-  # jellyseerr - request portal
+  # seerr - request portal
   # ============================================
-  jellyseerr:
-    image: ghcr.io/fallenbagel/jellyseerr:latest
-    container_name: jellyseerr
+  seerr:
+    image: ghcr.io/seerr-team/seerr:latest
+    init: true
+    container_name: seerr
     logging: *default-logging
     network_mode: "service:gluetun"
     depends_on:
@@ -148,9 +149,9 @@ services:
       - TZ=${TIMEZONE}
       - UMASK_SET=${USER_MASK}
       - PORT=5055
-      - APP_URL=https://jellyseerr.${DOMAIN}
+      - APP_URL=https://seerr.${DOMAIN}
     volumes:
-      - ${CONFIG_ROOT:-.}/jellyseerr:/app/config
+      - ${CONFIG_ROOT:-.}/seerr:/app/config
     security_opt:
       - no-new-privileges:true
     restart: "unless-stopped"
