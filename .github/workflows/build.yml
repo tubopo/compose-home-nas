@@ -8,7 +8,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [traefik, arr, gitea, immich]
+        service: [traefik, arr, gitea, immich, gotify]
 
     steps:
       - uses: actions/checkout@v4
