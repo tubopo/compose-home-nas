@@ -1,0 +1,54 @@
+# ============================================
+# logging
+# ============================================
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+    compress: "true"
+# ============================================
+# netwokrs
+# ============================================
+networks:
+  restricted_wan:
+    external: true
+
+services:
+  # ============================================
+  # gotify - notifications
+  # ============================================
+  gotify:
+    image: gotify/server:latest
+    container_name: gotify
+    logging: *default-logging
+    hostname: gotify
+    networks:
+      restricted_wan:
+        ipv4_address: 172.20.30.15
+    environment:
+      - LOG_LEVEL=info
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - UMASK_SET=${USER_MASK}
+      - GOTIFY_SERVER_PORT=8282
+    volumes:
+      - ${CONFIG_ROOT:-.}/gotify:/app/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gotify.tls=true"
+      - "traefik.http.routers.gotify.entrypoints=websecure"
+      - "traefik.http.routers.gotify.rule=Host(`gotify.${DOMAIN}`)"
+      - "traefik.http.services.gotify.loadbalancer.server.port=8282"
+      - "traefik.http.routers.gotify.tls.certresolver=cloudflare"
+    security_opt:
+      - no-new-privileges:true
+    restart: "unless-stopped"
+    healthcheck:
+      disable: false
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.1"
