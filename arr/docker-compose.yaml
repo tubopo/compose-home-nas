@@ -246,6 +246,48 @@ services:
           memory: 256M
           cpus: "0.1"
   # ============================================
+  # jacket - torrent indexer
+  # ============================================
+  jackett:
+    image: lscr.io/linuxserver/jackett:latest
+    container_name: jackett
+    logging: *default-logging
+    hostname: jackett
+    networks:
+      restricted_wan:
+        ipv4_address: 172.20.30.20
+    environment:
+      - LOG_LEVEL=info
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - UMASK_SET=${USER_MASK}
+      - AUTO_UPDATE=true
+    volumes:
+      - ${CONFIG_ROOT:-.}/jackett:/config
+      - ${MEDIA_SHARE}/media/downloads:/downloads:rw
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.jackett.tls=true"
+      - "traefik.http.routers.jackett.entrypoints=websecure"
+      - "traefik.http.routers.jackett.rule=Host(`jackett.${DOMAIN}`)"
+      - "traefik.http.services.jackett.loadbalancer.server.port=9117"
+      - "traefik.http.routers.jackett.tls.certresolver=cloudflare"
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:9117/UI/Dashboard"]
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+  # ============================================
   # qbittorrent - torrent download client
   # ============================================
   qbit:
