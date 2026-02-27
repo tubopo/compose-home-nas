@@ -104,8 +104,8 @@ services:
       - TZ=${TIMEZONE}
       - UMASK_SET=${USER_MASK}
     volumes:
-      - ${CONFIG_ROOT:-.}/jellyfin:/config
-      - ${CONFIG_ROOT:-.}/jellyfin/cache:/cache
+      - ${CONFIG_ROOT:-.}/jellyfin:/config:rw
+      - ${CONFIG_ROOT:-.}/jellyfin/cache:/cache:rw
       - ${MEDIA_SHARE}/media:/media:rw
     labels:
       - "traefik.enable=true"
@@ -116,6 +116,8 @@ services:
       - "traefik.http.routers.jellyfin.tls.certresolver=cloudflare"
     devices:
       - /dev/dri:/dev/dri
+      - /dev/dri/renderD128:/dev/dri/renderD128
+      - /dev/dri/card0:/dev/dri/card0
     security_opt:
       - no-new-privileges:true
     restart: "unless-stopped"
@@ -128,8 +130,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2G
-          cpus: "2.0"
+          memory: 4G
+          cpus: "4.0"
   # ============================================
   # seerr - request portal
   # ============================================
