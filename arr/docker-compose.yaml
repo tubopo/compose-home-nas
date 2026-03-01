@@ -130,8 +130,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4G
-          cpus: "4.0"
+          memory: 2G
+          cpus: "3.0"
   # ============================================
   # seerr - request portal
   # ============================================
@@ -202,6 +202,40 @@ services:
       test: ["CMD", "curl", "--fail", "http://127.0.0.1:8989/sonarr/ping"]
       interval: 1m
       retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.1"
+  # ============================================
+  # radarr - movie monitor
+  # ============================================
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    logging: *default-logging
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    environment:
+      - LOG_LEVEL=info
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - UMASK_SET=${USER_MASK}
+    volumes:
+      - ${CONFIG_ROOT:-.}/radarr:/config
+      - ${MEDIA_SHARE}/media:/media:rw
+    restart: "unless-stopped"
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:7878"]
+      interval: 2m
+      timeout: 15s
+      retries: 2
+      start_period: 60s
     deploy:
       resources:
         limits:
@@ -331,36 +365,47 @@ services:
           memory: 256M
           cpus: "0.1"
   # ============================================
-  # radarr - movie monitor
+  # flaresolverr - sovle challange
   # ============================================
-  radarr:
-    image: lscr.io/linuxserver/radarr:latest
-    container_name: radarr
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
     logging: *default-logging
-    network_mode: "service:gluetun"
-    depends_on:
-      gluetun:
-        condition: service_healthy
+    hostname: flaresolverr
+    networks:
+      restricted_wan:
+        ipv4_address: 172.20.30.66
     environment:
       - LOG_LEVEL=info
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
       - UMASK_SET=${USER_MASK}
-    volumes:
-      - ${CONFIG_ROOT:-.}/radarr:/config
-      - ${MEDIA_SHARE}/media:/media:rw
+    labels:
+      - "traefik.enable=false"
     restart: "unless-stopped"
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://127.0.0.1:7878"]
-      interval: 2m
-      timeout: 15s
+      # Actually test Chrome by making a solve request (catches Chrome crashes)
+      test:
+        [
+          "CMD",
+          "curl",
+          "-sf",
+          "-X",
+          "POST",
+          "-H",
+          "Content-Type: application/json",
+          "-d",
+          '{"cmd":"request.get","url":"http://localhost:8191/","maxTimeout":30000}',
+          "http://localhost:8191/v1",
+        ]
+      interval: 10m
+      timeout: 60s
       retries: 2
-      start_period: 60s
+      start_period: 2m
     deploy:
       resources:
         limits:
-          memory: 256M
-          cpus: "0.1"
+          memory: "512M"
