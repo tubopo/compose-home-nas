@@ -103,6 +103,9 @@ services:
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
       - UMASK_SET=${USER_MASK}
+      - DOCKER_MODS=linuxserver/mods:jellyfin-opencl-intel
+    group_add:
+      - 105
     volumes:
       - ${CONFIG_ROOT:-.}/jellyfin:/config:rw
       - ${CONFIG_ROOT:-.}/jellyfin/cache:/cache:rw
