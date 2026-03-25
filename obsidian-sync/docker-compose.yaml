@@ -1,0 +1,47 @@
+# ============================================
+# logging
+# ============================================
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+    compress: "true"
+# ============================================
+# netwokrs
+# ============================================
+networks:
+  restricted_wan:
+    external: true
+
+services:
+  obsidian-sync:
+    image: couchdb:latest
+    container_name: obsidian-sync
+    logging: *default-logging
+    hostname: obsidian-sync
+    networks:
+      restricted_wan:
+        ipv4_address: 172.20.30.25
+    environment:
+      - COUCHDB_USER=${USER:-admin}
+      - COUCHDB_PASSWORD=${PASS:-admin}
+    volumes:
+      - ${DATA:-.}/couchdb:/opt/couchdb/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.obsidian-sync.tls=true"
+      - "traefik.http.routers.obsidian-sync.entrypoints=websecure"
+      - "traefik.http.routers.obsidian-sync.rule=Host(`obsidian-sync.${DOMAIN}`)"
+      - "traefik.http.services.obsidian-sync.loadbalancer.server.port=5984"
+      - "traefik.http.routers.obsidian-sync.tls.certresolver=cloudflare"
+    security_opt:
+      - no-new-privileges:true
+    restart: "unless-stopped"
+    healthcheck:
+      disable: false
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.1"
