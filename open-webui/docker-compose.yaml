@@ -54,7 +54,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 6G
+          memory: 8G
           cpus: "2.0"
   # ============================================
   # openwebui -ai ui
