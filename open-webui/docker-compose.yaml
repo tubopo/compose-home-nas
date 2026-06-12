@@ -16,6 +16,47 @@ networks:
 
 services:
   # ============================================
+  # ollama
+  # ============================================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    logging: *default-logging
+    hostname: ollama
+    networks:
+      restricted_wan:
+        ipv4_address: 172.20.30.36
+    environment:
+      - LOG_LEVEL=info
+      - TZ=${TIMEZONE}
+      - UMASK_SET=${USER_MASK}
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_ORIGINS=*
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_MAX_LOADED_MODELS=1
+    volumes:
+      - ${CONFIG_ROOT:-.}/ollama:/root/.ollama
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ollama.tls=true"
+      - "traefik.http.routers.ollama.entrypoints=websecure"
+      - "traefik.http.routers.ollama.rule=Host(`ollama.${DOMAIN}`)"
+      - "traefik.http.services.ollama.loadbalancer.server.port=11434"
+      - "traefik.http.routers.ollama.tls.certresolver=cloudflare"
+    devices:
+      - /dev/dri:/dev/dri
+      - /dev/dri/renderD128:/dev/dri/renderD128
+      - /dev/dri/card0:/dev/dri/card0
+    security_opt:
+      - no-new-privileges:true
+    restart: "unless-stopped"
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+          cpus: "2.0"
+  # ============================================
   # openwebui -ai ui
   # ============================================
   openwebui:
@@ -31,6 +72,7 @@ services:
       - TZ=${TIMEZONE}
       - UMASK_SET=${USER_MASK}
       - HF_TOKEN=${HF_TOKEN}
+      - OLLAMA_BASE_URL=http://172.20.30.36:11434
     volumes:
       - ${CONFIG_ROOT:-.}/openwebui:/app/backend/data
     labels:
