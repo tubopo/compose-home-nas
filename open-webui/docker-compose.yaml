@@ -1,0 +1,58 @@
+# ============================================
+# logging
+# ============================================
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+    compress: "true"
+# ============================================
+# netwokrs
+# ============================================
+networks:
+  restricted_wan:
+    external: true
+
+services:
+  # ============================================
+  # openwebui -ai ui
+  # ============================================
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:latest
+    container_name: openwebui
+    logging: *default-logging
+    hostname: openwebui
+    networks:
+      restricted_wan:
+        ipv4_address: 172.20.30.34
+    environment:
+      - LOG_LEVEL=info
+      - TZ=${TIMEZONE}
+      - UMASK_SET=${USER_MASK}
+      - HF_TOKEN=${HF_TOKEN}
+    volumes:
+      - ${CONFIG_ROOT:-.}/openwebui:/app/backend/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.oi.tls=true"
+      - "traefik.http.routers.oi.entrypoints=websecure"
+      - "traefik.http.routers.oi.rule=Host(`oi.${DOMAIN}`)"
+      - "traefik.http.services.oi.loadbalancer.server.port=8080"
+      - "traefik.http.routers.oi.tls.certresolver=cloudflare"
+    devices:
+      - /dev/dri:/dev/dri
+      - /dev/dri/renderD128:/dev/dri/renderD128
+      - /dev/dri/card0:/dev/dri/card0
+    security_opt:
+      - no-new-privileges:true
+    restart: "unless-stopped"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:8080/health"]
+      interval: 1m
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
