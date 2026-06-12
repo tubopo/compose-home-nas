@@ -1,0 +1,69 @@
+# ============================================
+# logging
+# ============================================
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+    compress: "true"
+# ============================================
+# netwokrs
+# ============================================
+networks:
+  restricted_wan:
+    external: true
+
+services:
+  # ============================================
+  # frigate - cam management
+  # ============================================
+  frigate:
+    image: ghcr.io/blakeblackshear/frigate:stable
+    container_name: frigate
+    logging: *default-logging
+    hostname: frigate
+    networks:
+      restricted_wan:
+        ipv4_address: 172.20.30.31
+    environment:
+      - LOG_LEVEL=info
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - UMASK_SET=${USER_MASK}
+      - FRIGATE_RTSP_PASSWORD=${FRIGATE_RTSP_PASSWORD}
+    ports:
+      - "5000:5000" # HA connect
+      - "8554:8554" # RTSP feeds
+      - "8555:8555/tcp" # WebRTC over tcp
+      - "8555:8555/udp" # WebRTC over udp
+    group_add:
+      - 105
+    shm_size: "512mb"
+    volumes:
+      - ${CONFIG_ROOT:-.}/frigate:/config:rw
+      - ${MEDIA_SHARE}/media/frigate:/media/frigate:rw
+      - type: tmpfs # 1GB In-memory filesystem for recording  segment storage
+        target: /tmp/cache
+        tmpfs:
+          size: 1000000000
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frigate.tls=true"
+      - "traefik.http.routers.frigate.entrypoints=websecure"
+      - "traefik.http.routers.frigate.rule=Host(`frigate.${DOMAIN}`)"
+      - "traefik.http.services.frigate.loadbalancer.server.port=8971"
+      - "traefik.http.routers.frigate.tls.certresolver=cloudflare"
+    devices:
+      - /dev/dri:/dev/dri
+      - /dev/dri/renderD128:/dev/dri/renderD128
+      - /dev/dri/card0:/dev/dri/card0
+    security_opt:
+      - no-new-privileges:true
+    restart: "unless-stopped"
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
