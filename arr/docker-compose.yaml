@@ -112,6 +112,7 @@ services:
       - ${MEDIA_SHARE}/media:/media:rw
     labels:
       - "traefik.enable=true"
+      - "traefik.http.routers.jellyfin.service=jellyfin"
       - "traefik.http.routers.jellyfin.tls=true"
       - "traefik.http.routers.jellyfin.entrypoints=websecure"
       - "traefik.http.routers.jellyfin.rule=Host(`jellyfin.${DOMAIN}`)"
@@ -193,6 +194,7 @@ services:
       - ${MEDIA_SHARE}/media:/media:rw
     labels:
       - "traefik.enable=true"
+      - "traefik.http.routers.sonarr.service=sonarr"
       - "traefik.http.routers.sonarr.tls=true"
       - "traefik.http.routers.sonarr.entrypoints=websecure"
       - "traefik.http.routers.sonarr.rule=Host(`sonarr.${DOMAIN}`)"
@@ -265,6 +267,7 @@ services:
       - ${CONFIG_ROOT:-.}/prowlarr:/config
     labels:
       - "traefik.enable=true"
+      - "traefik.http.routers.prowlarr.service=prowlarr"
       - "traefik.http.routers.prowlarr.tls=true"
       - "traefik.http.routers.prowlarr.entrypoints=websecure"
       - "traefik.http.routers.prowlarr.rule=Host(`prowlarr.${DOMAIN}`)"
@@ -307,6 +310,7 @@ services:
       - ${MEDIA_SHARE}/media/downloads:/downloads:rw
     labels:
       - "traefik.enable=true"
+      - "traefik.http.routers.jackett.service=jackett"
       - "traefik.http.routers.jackett.tls=true"
       - "traefik.http.routers.jackett.entrypoints=websecure"
       - "traefik.http.routers.jackett.rule=Host(`jackett.${DOMAIN}`)"
@@ -350,6 +354,7 @@ services:
       - ${MEDIA_SHARE}/media:/media:rw
     labels:
       - "traefik.enable=true"
+      - "traefik.http.routers.qbit.service=qbit"
       - "traefik.http.routers.qbit.tls=true"
       - "traefik.http.routers.qbit.entrypoints=websecure"
       - "traefik.http.routers.qbit.rule=Host(`qbit.${DOMAIN}`)"

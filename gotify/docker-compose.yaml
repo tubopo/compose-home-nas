@@ -46,6 +46,7 @@ services:
       - ${CONFIG_ROOT:-.}/gotify:/app/data
     labels:
       - "traefik.enable=true"
+      - "traefik.http.routers.gotify.service=gotify"
       - "traefik.http.routers.gotify.tls=true"
       - "traefik.http.routers.gotify.entrypoints=websecure"
       - "traefik.http.routers.gotify.rule=Host(`gotify.${DOMAIN}`)"

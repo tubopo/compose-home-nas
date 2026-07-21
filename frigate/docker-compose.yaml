@@ -55,6 +55,7 @@ services:
       - "traefik.http.routers.frigate.rule=Host(`frigate.${DOMAIN}`)"
       - "traefik.http.services.frigate.loadbalancer.server.port=8971"
       - "traefik.http.routers.frigate.tls.certresolver=cloudflare"
+      - "traefik.http.routers.frigate.service=frigate"
     devices:
       - /dev/dri:/dev/dri
       - /dev/dri/renderD128:/dev/dri/renderD128

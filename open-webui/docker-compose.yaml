@@ -39,6 +39,7 @@ services:
       - ${CONFIG_ROOT:-.}/ollama:/root/.ollama
     labels:
       - "traefik.enable=true"
+      - "traefik.http.routers.ollama.service=ollama"
       - "traefik.http.routers.ollama.tls=true"
       - "traefik.http.routers.ollama.entrypoints=websecure"
       - "traefik.http.routers.ollama.rule=Host(`ollama.${DOMAIN}`)"
@@ -77,6 +78,7 @@ services:
       - ${CONFIG_ROOT:-.}/openwebui:/app/backend/data
     labels:
       - "traefik.enable=true"
+      - "traefik.http.routers.oi.service=oi"
       - "traefik.http.routers.oi.tls=true"
       - "traefik.http.routers.oi.entrypoints=websecure"
       - "traefik.http.routers.oi.rule=Host(`oi.${DOMAIN}`)"

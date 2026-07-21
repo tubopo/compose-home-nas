@@ -68,6 +68,7 @@ services:
       - ${GIT_DATA:-.}:/data:rw
     labels:
       - "traefik.enable=true"
+      - "traefik.http.routers.gitea.service=gitea"
       - "traefik.http.routers.gitea.tls=true"
       - "traefik.http.routers.gitea.entrypoints=websecure"
       - "traefik.http.routers.gitea.rule=Host(`gitea.${DOMAIN}`)"

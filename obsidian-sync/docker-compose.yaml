@@ -30,6 +30,7 @@ services:
       - ${DATA:-.}/couchdb:/opt/couchdb/data
     labels:
       - "traefik.enable=true"
+      - "traefik.http.routers.obsidian-sync.service=obsidian-sync"
       - "traefik.http.routers.obsidian-sync.tls=true"
       - "traefik.http.routers.obsidian-sync.entrypoints=websecure"
       - "traefik.http.routers.obsidian-sync.rule=Host(`obsidian-sync.${DOMAIN}`)"

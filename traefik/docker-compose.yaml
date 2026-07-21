@@ -84,8 +84,8 @@ services:
       - "--certificatesresolvers.cloudflare.acme.storage=/certificates/acme.json"
       - "--certificatesresolvers.cloudflare.acme.dnschallenge.resolvers=1.1.1.1:53,8.8.8.8:53"
       # Set readTimeout to 0 (unlimited) for large file uploads
-      - --entrypoints.web.transport.respondingTimeouts.readTimeout=0s
-      - --entrypoints.websecure.transport.respondingTimeouts.readTimeout=0s
+      - "--entrypoints.web.transport.respondingTimeouts.readTimeout=0s"
+      - "--entrypoints.websecure.transport.respondingTimeouts.readTimeout=0s"
       # Health & Monitoring
       - "--ping=true"
       - "--ping.entrypoint=web"
