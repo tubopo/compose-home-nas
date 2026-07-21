@@ -1,131 +1,72 @@
 # compose-home-nas 💿
 
-> A media server stack for home NAS, featuring the complete ARR suite with Traefik reverse proxy, VPN integration, and automated SSL certificates.
+Complete Docker Compose stack for UGreen NAS featuring media automation, photo management, self-hosted services, and monitoring.
 
-### 🎯 Key Features
+## 📦 What's Included
 
-- **🔒 Secure Remote Access**: Traefik reverse proxy with automatic SSL certificates via Cloudflare DNS-01 challenge
-- **🛡️ VPN Integration**: Gluetun VPN gateway for accessing restricted resources
-- **🎬 Complete ARR Stack**: Sonarr, Radarr, Prowlarr, Jellyseerr for automated media management
-- **📺 Media Streaming**: Jellyfin with hardware transcoding support
-- **🔄 Automated Workflows**: From request to playback with zero manual intervention
-- **📊 Resource Optimized**: Carefully tuned resource limits for efficient home server operation
+| Category | Services | Access |
+|----------|----------|--------|
+| **Gateway** | Traefik (reverse proxy + SSL) | `traefik.${DOMAIN}` |
+| **Monitoring** | Uptime Kuma, Netdata, Autoheal, Diun | `uptime.${DOMAIN}`, `netdata.${DOMAIN}` |
+| **Notifications** | Gotify | `gotify.${DOMAIN}` |
+| **Git** | Gitea + PostgreSQL | `gitea.${DOMAIN}` |
+| **Photos** | Immich + PostgreSQL + Redis + ML | `immich.${DOMAIN}` |
+| **Media** | Jellyfin | `jellyfin.${DOMAIN}` |
+| **Automation** | Sonarr, Radarr, Prowlarr, Seerr, Jackett | Various subdomains |
+| **Downloads** | QBittorrent + Gluetun VPN | `qbit.${DOMAIN}` |
+| **AI** | Ollama + Open WebUI | `oi.${DOMAIN}` |
+| **Notes** | Obsidian Sync (CouchDB) | `obsidian-sync.${DOMAIN}` |
+| **Cameras** | Frigate | `frigate.${DOMAIN}` |
 
-## 🔄 Overview
+**Total:** 25+ containers | **Monitoring:** ~1GB RAM | **SSL:** Auto via Let's Encrypt
+
+---
+
+## 🏗️ Architecture
 
 ```mermaid
-
 graph TB
-    subgraph Internet
-        U[You - Browser]
-        DNS[Cloudflare DNS]
-        LE[Let's Encrypt]
-    end
+    Internet[Internet/Browser] --> CF[Cloudflare DNS]
+    CF --> T[Traefik<br/>Reverse Proxy<br/>172.20.30.10]
 
-    subgraph "Your Home NAS"
-        subgraph "Gateway"
-            T[Traefik<br/>Reverse Proxy]
-        end
+    T --> Mon[Monitoring Stack<br/>Uptime Kuma, Netdata<br/>Autoheal, Diun]
+    T --> Git[Gitea<br/>172.20.30.70]
+    T --> Photos[Immich<br/>172.20.30.80]
+    T --> Media[Jellyfin<br/>172.20.30.50]
+    T --> AI[Open WebUI<br/>172.20.30.34]
+    T --> VPN[Gluetun VPN<br/>172.20.30.90]
 
-        subgraph "VPN Zone"
-            G[Gluetun<br/>VPN Gateway]
-            subgraph "Apps Behind VPN"
-                R[Radarr]
-                S[Sonarr]
-                P[Prowlarr]
-                JS[Jellyseerr]
-            end
-        end
+    VPN --> ARR[Sonarr/Radarr<br/>Prowlarr/Seerr]
 
-        subgraph "Local Zone"
-            subgraph "Download Client"
-                Q[QBittorrent]
-            end
-            subgraph "Media Server"
-                J[Jellyfin]
-            end
-        end
+    Git -.-> PG1[(PostgreSQL)]
+    Photos -.-> PG2[(PostgreSQL)]
+    Photos -.-> Redis[(Redis)]
 
-        subgraph "Storage"
-            M[(Media Library)]
-            C[(Configs)]
-        end
-    end
+    ARR --> DL[QBittorrent<br/>172.20.30.60]
+    DL --> Storage[(Media Storage)]
+    Storage --> Media
 
-    U --> DNS
-    DNS --> T
-    T --> LE
-    
-    T --> J
-    T --> JS
-    T --> R
-    T --> S
-    T --> P
-    
-    JS --> R & S
-    R & S --> P
-    P --> Q
-    Q --> M
-    M --> J
-    
-    G --> R & S & P & JS
-    R & S & J & Q --> C
+    style T fill:#f9f,stroke:#333
+    style Mon fill:#9f9,stroke:#333
+    style VPN fill:#ff9,stroke:#333
 ```
 
-### 🔄 Media Flow
+**Network:** All services on `restricted_wan` (172.20.30.0/24) with fixed IPs
+**SSL:** Traefik handles automatic Let's Encrypt certificates via Cloudflare DNS-01
+**Isolation:** Databases on separate internal networks
 
-```mermaid
-flowchart LR
-    subgraph Request
-        JS[Jellyseerr]
-    end
-    
-    subgraph Management
-        R[Radarr]
-        S[Sonarr]
-        P[Prowlarr]
-    end
-    
-    subgraph Download
-        Q[QBittorrent]
-        F[Flaresolverr]
-    end
-    
-    subgraph Library
-        J[Jellyfin]
-    end
+---
 
-    JS -->|Movie Request| R
-    JS -->|TV Request| S
-    R -->|Search| P
-    S -->|Search| P
-    P -->|Fetch Index| F
-    P -->|Send to Client| Q
-    Q -->|Download| J
-    J -->|Stream| User
-```
+## 🔍 Monitoring
 
+**Included services:**
+- **Autoheal** - Auto-restart unhealthy containers
+- **Uptime Kuma** - Uptime monitoring dashboard
+- **Netdata** - Real-time metrics
+- **Diun** - Update notifications
+- **Watchtower** - Optional auto-updates
 
-### 🔄 SSL Certificate Flow (DNS-01 Challenge)
-
-```mermaid
-sequenceDiagram
-    participant U as User Browser
-    participant DNS as DNS Provider (Cloudflare)
-    participant T as Traefik (Proxy)
-    participant APP as App (Jellyfin/Other)
-    participant CA as Certificate Authority (Let's Encrypt)
-
-    Note over T, CA: 1. THE SSL CHALLENGE (DNS-01)
-    T->>DNS: Sets "Proof of Ownership" TXT record via API
-    CA->>DNS: Checks for the TXT record
-    DNS-->>CA: Record verified
-    CA->>T: Issues valid SSL Certificate
-
-    Note over U, APP: 2. THE CONNECTION
-    U->>DNS: "Where is my-app.custom-domain.com?"
-    DNS-->>U: "It is at [Your-Private-IP]"
-    U->>T: Requests page via HTTPS
-    T->>APP: Forwards traffic to [Internal-Container-Port]
-    APP-->>U: App loads securely
-```
+**Get notified when:**
+- Containers crash
+- Services go down
+- Updates available
