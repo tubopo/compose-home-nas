@@ -74,6 +74,7 @@ services:
       - "traefik.http.routers.gitea.rule=Host(`gitea.${DOMAIN}`)"
       - "traefik.http.services.gitea.loadbalancer.server.port=3000"
       - "traefik.http.routers.gitea.tls.certresolver=cloudflare"
+      - "traefik.docker.network=restricted_wan"
     security_opt:
       - no-new-privileges:true
     restart: "unless-stopped"
