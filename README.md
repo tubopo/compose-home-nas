@@ -39,7 +39,6 @@ graph TB
     Storage --> Media
 
     style T fill:#f9f,stroke:#333
-    style Mon fill:#9f9,stroke:#333
     style VPN fill:#ff9,stroke:#333
 ```
 
