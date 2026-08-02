@@ -6,3 +6,4 @@ docker-compose.override.yml
 secrets/**
 .secrets/**
 app.ini
+frigate/config.yaml
