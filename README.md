@@ -27,6 +27,8 @@ graph TB
     T --> Photos[Immich<br/>172.20.30.80]
     T --> Media[Jellyfin<br/>172.20.30.50]
     T --> VPN[Gluetun VPN<br/>172.20.30.90]
+    T --> Cam[Frigate<br/>172.20.30.31]
+    T --> Notes[Obsidian Sync<br/>172.20.30.25]
 
     VPN --> ARR[Sonarr/Radarr<br/>Prowlarr/Seerr]
 
