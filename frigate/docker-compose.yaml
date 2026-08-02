@@ -34,7 +34,8 @@ services:
       - UMASK_SET=${USER_MASK}
       - FRIGATE_RTSP_PASSWORD=${FRIGATE_RTSP_PASSWORD}
     ports:
-      - "5000:5000" # HA connect
+      - "8971:8971" # Web UI (TLS disabled, handled by Traefik)
+      - "5000:5000" # Internal API
       - "8554:8554" # RTSP feeds
       - "8555:8555/tcp" # WebRTC over tcp
       - "8555:8555/udp" # WebRTC over udp
@@ -53,7 +54,7 @@ services:
       - "traefik.http.routers.frigate.tls=true"
       - "traefik.http.routers.frigate.entrypoints=websecure"
       - "traefik.http.routers.frigate.rule=Host(`frigate.${DOMAIN}`)"
-      - "traefik.http.services.frigate.loadbalancer.server.port=5000"
+      - "traefik.http.services.frigate.loadbalancer.server.port=8971"
       - "traefik.http.routers.frigate.tls.certresolver=cloudflare"
       - "traefik.http.routers.frigate.service=frigate"
     devices:
