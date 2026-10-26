@@ -61,13 +61,34 @@ services:
       - "traefik.http.routers.seerr.rule=Host(`seerr.${DOMAIN}`)"
       - "traefik.http.routers.seerr.entrypoints=websecure"
       - "traefik.http.services.seerr.loadbalancer.server.port=5055"
-      # Radarr
+      # radarr
       - "traefik.http.routers.radarr.service=radarr"
       - "traefik.http.routers.radarr.tls=true"
       - "traefik.http.routers.radarr.tls.certresolver=cloudflare"
       - "traefik.http.routers.radarr.entrypoints=websecure"
       - "traefik.http.routers.radarr.rule=Host(`radarr.${DOMAIN}`)"
       - "traefik.http.services.radarr.loadbalancer.server.port=7878"
+      # prowlar
+      - "traefik.http.routers.prowlarr.service=prowlarr"
+      - "traefik.http.routers.prowlarr.tls=true"
+      - "traefik.http.routers.prowlarr.tls.certresolver=cloudflare"
+      - "traefik.http.routers.prowlarr.entrypoints=websecure"
+      - "traefik.http.routers.prowlarr.rule=Host(`prowlarr.${DOMAIN}`)"
+      - "traefik.http.services.prowlarr.loadbalancer.server.port=9696"
+      # flaresolverr
+      - "traefik.http.routers.flaresolverr.service=flaresolverr"
+      - "traefik.http.routers.flaresolverr.tls=true"
+      - "traefik.http.routers.flaresolverr.tls.certresolver=cloudflare"
+      - "traefik.http.routers.flaresolverr.entrypoints=websecure"
+      - "traefik.http.routers.flaresolverr.rule=Host(`flaresolverr.${DOMAIN}`)"
+      - "traefik.http.services.flaresolverr.loadbalancer.server.port=8191"
+      # jackett
+      - "traefik.http.routers.jackett.service=jackett"
+      - "traefik.http.routers.jackett.tls=true"
+      - "traefik.http.routers.jackett.tls.certresolver=cloudflare"
+      - "traefik.http.routers.jackett.entrypoints=websecure"
+      - "traefik.http.routers.jackett.rule=Host(`jackett.${DOMAIN}`)"
+      - "traefik.http.services.jackett.loadbalancer.server.port=9117"
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped
@@ -253,10 +274,10 @@ services:
     image: lscr.io/linuxserver/prowlarr:latest
     container_name: prowlarr
     logging: *default-logging
-    hostname: prowlarr
-    networks:
-      restricted_wan:
-        ipv4_address: 172.20.30.30
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
     environment:
       - LOG_LEVEL=info
       - PUID=${USER_ID}
@@ -265,14 +286,6 @@ services:
       - UMASK_SET=${USER_MASK}
     volumes:
       - ${CONFIG_ROOT:-.}/prowlarr:/config
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.prowlarr.service=prowlarr"
-      - "traefik.http.routers.prowlarr.tls=true"
-      - "traefik.http.routers.prowlarr.entrypoints=websecure"
-      - "traefik.http.routers.prowlarr.rule=Host(`prowlarr.${DOMAIN}`)"
-      - "traefik.http.services.prowlarr.loadbalancer.server.port=9696"
-      - "traefik.http.routers.prowlarr.tls.certresolver=cloudflare"
     security_opt:
       - no-new-privileges:true
     restart: "unless-stopped"
@@ -294,10 +307,10 @@ services:
     image: lscr.io/linuxserver/jackett:latest
     container_name: jackett
     logging: *default-logging
-    hostname: jackett
-    networks:
-      restricted_wan:
-        ipv4_address: 172.20.30.20
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
     environment:
       - LOG_LEVEL=info
       - PUID=${USER_ID}
@@ -308,14 +321,6 @@ services:
     volumes:
       - ${CONFIG_ROOT:-.}/jackett:/config
       - ${MEDIA_SHARE}/media/downloads:/downloads:rw
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.jackett.service=jackett"
-      - "traefik.http.routers.jackett.tls=true"
-      - "traefik.http.routers.jackett.entrypoints=websecure"
-      - "traefik.http.routers.jackett.rule=Host(`jackett.${DOMAIN}`)"
-      - "traefik.http.services.jackett.loadbalancer.server.port=9117"
-      - "traefik.http.routers.jackett.tls.certresolver=cloudflare"
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped
@@ -379,36 +384,21 @@ services:
     image: ghcr.io/flaresolverr/flaresolverr:latest
     container_name: flaresolverr
     logging: *default-logging
-    hostname: flaresolverr
-    networks:
-      restricted_wan:
-        ipv4_address: 172.20.30.66
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
     environment:
       - LOG_LEVEL=info
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
       - UMASK_SET=${USER_MASK}
-    labels:
-      - "traefik.enable=false"
     restart: "unless-stopped"
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      # Actually test Chrome by making a solve request (catches Chrome crashes)
-      test:
-        [
-          "CMD",
-          "curl",
-          "-sf",
-          "-X",
-          "POST",
-          "-H",
-          "Content-Type: application/json",
-          "-d",
-          '{"cmd":"request.get","url":"http://localhost:8191/","maxTimeout":30000}',
-          "http://localhost:8191/v1",
-        ]
+      test: ["CMD", "curl", "-sf", "http://localhost:8191/health"]
       interval: 10m
       timeout: 60s
       retries: 2
