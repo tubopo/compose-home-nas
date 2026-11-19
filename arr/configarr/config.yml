@@ -1,0 +1,162 @@
+prowlarr:
+  main:
+    base_url: http://172.20.30.30:9696
+    api_key: !env PROWLARR_API_KEY
+
+    # "Sync Profiles" = the RSS/search rules each indexer is bound to.
+    sync_profiles:
+      data:
+        - name: Standard
+          enable_rss: true
+          enable_automatic_search: true
+          enable_interactive_search: true
+          minimum_seeders: 1
+
+    # Byparr speaks the FlareSolverr API, so Prowlarr still sees it as one.
+    # The tag is what attaches it to indexers: Prowlarr only uses a proxy for
+    # indexers that share at least one tag with it. Below, MegaPeer and
+    # Kinozal carry the `byparr` tag; add it to any other indexer whose
+    # Prowlarr definition mentions flaresolverr/Cloudflare.
+    indexer_proxies:
+      data:
+        - name: byparr
+          type: FlareSolverr
+          tags:
+            - byparr
+          fields:
+            host: http://byparr:8191/
+            requestTimeout: 60
+
+    # Prowlarr definitions covering the old Jackett list.
+    # LostFilm.tv has no Prowlarr definition - see README.
+    indexers:
+      data:
+        # Apps confirmed working now (created with everything else disabled),
+        # so re-enabling the free/public ones is low-risk: a failure here
+        # will still abort that run's indexer sync, but Apps already exist
+        # in Prowlarr and won't be lost. MegaPeer and NewStudio are known to
+        # currently fail (byparr/Cloudflare and IP-allowlist respectively,
+        # see below) - re-enabled anyway to get a fresh read on both.
+        - name: BigFANGroup
+          definition: bigfangroup
+          enable: true
+          sync_profile: Standard
+        - name: RuTor
+          definition: rutor
+          enable: true
+          sync_profile: Standard
+        # Ships info_flaresolverr in its definition. Without byparr: direct
+        # connection fails ("Resource temporarily unavailable"). With byparr:
+        # "Empty cookies returned by FlareSolverr". Byparr's own logs show
+        # megapeer.vip loading cleanly at other times with no challenge
+        # shown at all - so Cloudflare here looks inconsistent/adaptive
+        # (sometimes challenges, sometimes doesn't) rather than this being a
+        # fixable config problem either way. Disabled; revisit later, with
+        # byparr tag back on since direct access is confirmed not to work.
+        - name: MegaPeer
+          definition: megapeer
+          enable: false
+          sync_profile: Standard
+          tags:
+            - byparr
+        - name: NewStudio
+          definition: newstudio
+          enable: true
+          sync_profile: Standard
+        - name: NoNaMe Club
+          definition: noname-club
+          enable: true
+          sync_profile: Standard
+        # Disabled: confirmed via `curl -v` from inside the Prowlarr
+        # container that torrent.by's server sends only its leaf TLS
+        # certificate, no intermediate ("Certificate level 0" only, verify
+        # error 20: unable to get local issuer certificate). That's a
+        # server-side misconfig on their end (missing chain file) - browsers
+        # mask it via AIA fetching, curl/.NET don't. Not fixable here;
+        # re-test later in case they fix their cert chain.
+        - name: torrent.by
+          definition: torrentby
+          enable: false
+          sync_profile: Standard
+
+        # Native Prowlarr implementation (C#), not a Cardigann definition, so
+        # it has no schema `definitionName` - configarr matches it by display
+        # name instead, which is "RuTracker.org" (not "RuTracker").
+        # Login is mandatory - register at rutracker.org (open signup, just
+        # email + captcha) and fill RUTRACKER_USER/PASS in arr/.env.
+        #
+        # baseUrl is the .net mirror (the default .org is ISP-blocked in
+        # Russia/Belarus) and byparr is required: rutracker.net's Cloudflare
+        # challenge takes 15-20s for byparr to click through, confirmed via
+        # its own container logs, which is longer than configarr's own
+        # hardcoded 10s HTTP client timeout. That means a *change* to this
+        # entry will always fail/timeout through configarr (it's a configarr
+        # limitation, not a config bug) - make any future change via
+        # Prowlarr's UI directly (Test, then Save - no 10s cap there), then
+        # update the fields below to match so configarr sees it as
+        # unchanged and never re-touches it. This is why it stays enabled
+        # here even though configarr itself could never have created it.
+        - name: RuTracker.org
+          definition: RuTracker.org
+          enable: true
+          sync_profile: Standard
+          tags:
+            - byparr
+          fields:
+            baseUrl: https://rutracker.net/
+            username: !env RUTRACKER_USER
+            password: !env RUTRACKER_PASS
+
+        # Disabled until you register. configarr resolves `!env` tags for the
+        # whole file at parse time regardless of `enable:`, so an entry with
+        # a `fields:` block referencing an unset var crashes the sync even
+        # while disabled - these are left without `fields:` for that reason.
+        # Once you register, fill the creds in arr/.env, add the matching
+        # `fields:` block back (see git history / README for the field
+        # names), then flip to `enable: true`.
+        #
+        # Kept because these are the highest-value RU trackers worth the
+        # signup; smaller/niche ones were dropped instead. See README.
+        - name: Kinozal
+          definition: kinozal
+          enable: false
+          sync_profile: Standard
+          tags:
+            - byparr
+
+        # TV with RU voice-over (ex-BaibaKoTV) - strong pick for Sonarr.
+        - name: RUDUB
+          definition: rudub
+          enable: false
+          sync_profile: Standard
+
+        # Cookie auth - no username/password field on this definition.
+        - name: Rustorka
+          definition: rustorka
+          enable: false
+          sync_profile: Standard
+
+    # Prowlarr pushes the indexers above into Radarr and Sonarr.
+    # Radarr lives inside gluetun, so it is addressed via gluetun's bridge IP.
+    applications:
+      data:
+        - name: Radarr
+          type: Radarr
+          sync_level: fullSync
+          fields:
+            prowlarrUrl: http://172.20.30.30:9696
+            baseUrl: http://172.20.30.90:7878
+            apiKey: !env RADARR_API_KEY
+            syncCategories:
+              [2000, 2010, 2020, 2030, 2040, 2045, 2050, 2060, 2070, 2080, 2090]
+        - name: Sonarr
+          type: Sonarr
+          sync_level: fullSync
+          fields:
+            prowlarrUrl: http://172.20.30.30:9696
+            baseUrl: http://172.20.30.40:8989
+            apiKey: !env SONARR_API_KEY
+            syncCategories: [5000, 5010, 5020, 5030, 5040, 5045, 5050, 5090]
+      # Run Prowlarr's "Sync App Indexers" command after the apps are updated,
+      # so Radarr/Sonarr pick up the new Prowlarr URL immediately.
+      sync_indexers: true

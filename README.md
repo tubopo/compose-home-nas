@@ -10,7 +10,7 @@ Complete Docker Compose stack for UGreen NAS featuring media automation, photo m
 | **Git** | Gitea + PostgreSQL | `gitea.${DOMAIN}` |
 | **Photos** | Immich + PostgreSQL + Redis + ML | `immich.${DOMAIN}` |
 | **Media** | Jellyfin | `jellyfin.${DOMAIN}` |
-| **Automation** | Sonarr, Radarr, Prowlarr, Seerr, Jackett | Various subdomains |
+| **Automation** | Sonarr, Radarr, Prowlarr, Seerr, Byparr | Various subdomains |
 | **Downloads** | QBittorrent + Gluetun VPN | `qbit.${DOMAIN}` |
 | **Notes** | Obsidian Sync (CouchDB) | `obsidian-sync.${DOMAIN}` |
 | **Cameras** | Frigate | `frigate.${DOMAIN}` |
@@ -27,18 +27,21 @@ graph TB
     T --> Photos[Immich<br/>172.20.30.80]
     T --> Media[Jellyfin<br/>172.20.30.50]
     T --> VPN[Gluetun VPN<br/>172.20.30.90]
+    T --> PR[Prowlarr<br/>172.20.30.30]
     T --> Cam[Frigate<br/>172.20.30.31]
     T --> Notes[Obsidian Sync<br/>172.20.30.25]
 
-    VPN --> ARR[Sonarr/Radarr<br/>Prowlarr/Seerr]
+    VPN --> ARR[Radarr/Seerr]
+    ARR --> PR
+    ARR --> DL[QBittorrent<br/>172.20.30.60]
+    PR --> BP[Byparr<br/>172.20.30.66]
+    PR -.-> Trackers
+    DL --> Storage[(Media Storage)]
+    Storage --> Media
 
     Git -.-> PG1[(PostgreSQL)]
     Photos -.-> PG2[(PostgreSQL)]
     Photos -.-> Redis[(Redis)]
-
-    ARR --> DL[QBittorrent<br/>172.20.30.60]
-    DL --> Storage[(Media Storage)]
-    Storage --> Media
 
     style T fill:#f9f,stroke:#333
     style VPN fill:#ff9,stroke:#333

@@ -24,8 +24,8 @@ jobs:
           echo "dummy-cf-token-$(date +%s)" > ./secrets/cf_dns_api_token
           echo "testuser:$(openssl passwd -apr1 testpass123)" > ./secrets/traefik_basic_auth
           echo "test@example.com" > ./secrets/cf_api_email
-          echo "test-pia-user" > ./secrets/pia_user
-          echo "test-pia-pass" > ./secrets/pia_pass
+          echo "test-pia-user" > ./secrets/openvpn_user
+          echo "test-pia-pass" > ./secrets/openvpn_password
           echo "postgres" > ./secrets/pg_user
           echo "postgres-pass-$(date +%s)" > ./secrets/pg_pas
           echo "gitea-key-$(openssl rand -hex 16)" > ./secrets/gitea_key

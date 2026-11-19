@@ -17,10 +17,12 @@ networks:
 # secrets
 # ============================================
 secrets:
-  pia_user:
-    file: ${SECRETS}/pia_user
-  pia_pass:
-    file: ${SECRETS}/pia_pass
+  # gluetun reads these from the default paths
+  # /run/secrets/openvpn_user and /run/secrets/openvpn_password
+  openvpn_user:
+    file: ${SECRETS}/openvpn_user
+  openvpn_password:
+    file: ${SECRETS}/openvpn_password
 services:
   # ============================================
   # gluetun - VPN gateway
@@ -38,8 +40,8 @@ services:
     devices:
       - /dev/net/tun:/dev/net/tun
     secrets:
-      - pia_user
-      - pia_pass
+      - openvpn_user
+      - openvpn_password
     environment:
       - LOG_LEVEL=info
       - PUID=${USER_ID}
@@ -47,8 +49,6 @@ services:
       - TZ=${TIMEZONE}
       - UMASK_SET=${USER_MASK}
       - VPN_SERVICE_PROVIDER=private internet access
-      - OPENVPN_USER_FILE=/run/secrets/pia_user
-      - OPENVPN_PASSWORD_FILE=/run/secrets/pia_pass
       - SERVER_REGIONS=${PIA_REGION}
     volumes:
       - ${CONFIG_ROOT:-.}/gluetun:/gluetun
@@ -68,27 +68,6 @@ services:
       - "traefik.http.routers.radarr.entrypoints=websecure"
       - "traefik.http.routers.radarr.rule=Host(`radarr.${DOMAIN}`)"
       - "traefik.http.services.radarr.loadbalancer.server.port=7878"
-      # prowlar
-      - "traefik.http.routers.prowlarr.service=prowlarr"
-      - "traefik.http.routers.prowlarr.tls=true"
-      - "traefik.http.routers.prowlarr.tls.certresolver=cloudflare"
-      - "traefik.http.routers.prowlarr.entrypoints=websecure"
-      - "traefik.http.routers.prowlarr.rule=Host(`prowlarr.${DOMAIN}`)"
-      - "traefik.http.services.prowlarr.loadbalancer.server.port=9696"
-      # flaresolverr
-      - "traefik.http.routers.flaresolverr.service=flaresolverr"
-      - "traefik.http.routers.flaresolverr.tls=true"
-      - "traefik.http.routers.flaresolverr.tls.certresolver=cloudflare"
-      - "traefik.http.routers.flaresolverr.entrypoints=websecure"
-      - "traefik.http.routers.flaresolverr.rule=Host(`flaresolverr.${DOMAIN}`)"
-      - "traefik.http.services.flaresolverr.loadbalancer.server.port=8191"
-      # jackett
-      - "traefik.http.routers.jackett.service=jackett"
-      - "traefik.http.routers.jackett.tls=true"
-      - "traefik.http.routers.jackett.tls.certresolver=cloudflare"
-      - "traefik.http.routers.jackett.entrypoints=websecure"
-      - "traefik.http.routers.jackett.rule=Host(`jackett.${DOMAIN}`)"
-      - "traefik.http.services.jackett.loadbalancer.server.port=9117"
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped
@@ -274,10 +253,10 @@ services:
     image: lscr.io/linuxserver/prowlarr:latest
     container_name: prowlarr
     logging: *default-logging
-    network_mode: "service:gluetun"
-    depends_on:
-      gluetun:
-        condition: service_healthy
+    hostname: prowlarr
+    networks:
+      restricted_wan:
+        ipv4_address: 172.20.30.30
     environment:
       - LOG_LEVEL=info
       - PUID=${USER_ID}
@@ -286,11 +265,19 @@ services:
       - UMASK_SET=${USER_MASK}
     volumes:
       - ${CONFIG_ROOT:-.}/prowlarr:/config
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prowlarr.service=prowlarr"
+      - "traefik.http.routers.prowlarr.tls=true"
+      - "traefik.http.routers.prowlarr.tls.certresolver=cloudflare"
+      - "traefik.http.routers.prowlarr.entrypoints=websecure"
+      - "traefik.http.routers.prowlarr.rule=Host(`prowlarr.${DOMAIN}`)"
+      - "traefik.http.services.prowlarr.loadbalancer.server.port=9696"
     security_opt:
       - no-new-privileges:true
     restart: "unless-stopped"
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://127.0.0.1:9696/prowlarr/ping"]
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:9696/ping"]
       interval: 2m
       timeout: 15s
       retries: 2
@@ -298,43 +285,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
-          cpus: "0.1"
-  # ============================================
-  # jacket - torrent indexer
-  # ============================================
-  jackett:
-    image: lscr.io/linuxserver/jackett:latest
-    container_name: jackett
-    logging: *default-logging
-    network_mode: "service:gluetun"
-    depends_on:
-      gluetun:
-        condition: service_healthy
-    environment:
-      - LOG_LEVEL=info
-      - PUID=${USER_ID}
-      - PGID=${GROUP_ID}
-      - TZ=${TIMEZONE}
-      - UMASK_SET=${USER_MASK}
-      - AUTO_UPDATE=true
-    volumes:
-      - ${CONFIG_ROOT:-.}/jackett:/config
-      - ${MEDIA_SHARE}/media/downloads:/downloads:rw
-    security_opt:
-      - no-new-privileges:true
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "--fail", "http://127.0.0.1:9117/UI/Dashboard"]
-      interval: 1m
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: "0.5"
+          memory: 512M
+          cpus: "1.0"
   # ============================================
   # qbittorrent - torrent download client
   # ============================================
@@ -368,6 +320,7 @@ services:
     security_opt:
       - no-new-privileges:true
     restart: "unless-stopped"
+    stop_grace_period: 1m
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://127.0.0.1:8085"]
       interval: 1m
@@ -378,32 +331,79 @@ services:
           memory: 256M
           cpus: "0.1"
   # ============================================
-  # flaresolverr - sovle challange
+  # byparr - cloudflare challenge solver (flaresolverr drop-in)
   # ============================================
-  flaresolverr:
-    image: ghcr.io/flaresolverr/flaresolverr:latest
-    container_name: flaresolverr
+  byparr:
+    image: ghcr.io/thephaseless/byparr:latest
+    container_name: byparr
     logging: *default-logging
-    network_mode: "service:gluetun"
-    depends_on:
-      gluetun:
-        condition: service_healthy
+    hostname: byparr
+    networks:
+      restricted_wan:
+        ipv4_address: 172.20.30.66
     environment:
       - LOG_LEVEL=info
-      - PUID=${USER_ID}
-      - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
-      - UMASK_SET=${USER_MASK}
-    restart: "unless-stopped"
+      - BROWSER_LOCALE=ru-RU
+      - BROWSER_TIMEZONE=${TIMEZONE}
+    # Chromium needs a large /dev/shm and an exec-capable /tmp
+    shm_size: "1gb"
+    tmpfs:
+      - /tmp:exec,mode=1777,size=1G
     security_opt:
       - no-new-privileges:true
+    restart: "unless-stopped"
+    # Cheap liveness probe - /health launches a real browser and hits google.com
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8191/health"]
-      interval: 10m
-      timeout: 60s
-      retries: 2
-      start_period: 2m
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8191/docs"]
+      interval: 5m
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     deploy:
       resources:
         limits:
-          memory: "512M"
+          memory: 2G
+          cpus: "2.0"
+  # ============================================
+  # configarr - declarative Prowlarr wiring (one-shot)
+  # ============================================
+  configarr:
+    image: ghcr.io/raydak-labs/configarr:1.39.2
+    container_name: configarr
+    logging: *default-logging
+    networks:
+      restricted_wan:
+        ipv4_address: 172.20.30.67
+    # One-shot job: starts with the stack, syncs, then exits
+    depends_on:
+      prowlarr:
+        condition: service_healthy
+    environment:
+      - LOG_LEVEL=info
+      - TZ=${TIMEZONE}
+      # Read from arr/.env (next to this compose file)
+      - PROWLARR_API_KEY=${PROWLARR_API_KEY:-}
+      - RADARR_API_KEY=${RADARR_API_KEY:-}
+      - SONARR_API_KEY=${SONARR_API_KEY:-}
+      - RUTRACKER_USER=${RUTRACKER_USER:-}
+      - RUTRACKER_PASS=${RUTRACKER_PASS:-}
+      - KINOZAL_USER=${KINOZAL_USER:-}
+      - KINOZAL_PASS=${KINOZAL_PASS:-}
+      - RUDUB_USER=${RUDUB_USER:-}
+      - RUDUB_PASS=${RUDUB_PASS:-}
+      - RUSTORKA_COOKIE=${RUSTORKA_COOKIE:-}
+      - DRY_RUN=${DRY_RUN:-false}
+    volumes:
+      # Declarative config, versioned in the repo
+      - ./configarr:/app/config:ro
+      # Runtime clone cache, lives with the other app data
+      - ${CONFIG_ROOT:-.}/configarr/repos:/app/repos
+    security_opt:
+      - no-new-privileges:true
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
